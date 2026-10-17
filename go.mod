@@ -22,7 +22,7 @@ require (
 	github.com/stefanfritsch/goldmark-fences v1.0.0
 	github.com/tidwall/gjson v1.20.0
 	github.com/wailsapp/wails/v2 v2.16.0
-	github.com/yuin/goldmark v1.8.2
+	github.com/yuin/goldmark v1.8.6
 	github.com/yuin/goldmark-emoji v1.0.6
 	github.com/yuin/goldmark-highlighting/v2 v2.0.0-20230729083705-37449abec8cc
 	// github.com/zmtcreative/gm-alert-callouts v0.6.0
