@@ -11,7 +11,7 @@ go 1.25.0
 
 require (
 	github.com/FurqanSoftware/goldmark-d2 v0.0.0-20250906161746-6305edf4a24a
-	github.com/alecthomas/chroma/v2 v2.26.1
+	github.com/alecthomas/chroma/v2 v2.27.0
 	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de
 	github.com/kingreatwill/goldmark-katex/v2 v2.1.0
 	github.com/mangoumbrella/goldmark-figure v1.4.0
@@ -20,7 +20,7 @@ require (
 	github.com/spf13/pflag v1.0.10
 	github.com/spf13/viper v1.21.0
 	github.com/stefanfritsch/goldmark-fences v1.0.0
-	github.com/tidwall/gjson v1.19.0
+	github.com/tidwall/gjson v1.20.0
 	github.com/wailsapp/wails/v2 v2.16.0
 	github.com/yuin/goldmark v1.8.2
 	github.com/yuin/goldmark-emoji v1.0.6
@@ -51,7 +51,7 @@ require (
 	github.com/bep/debounce v1.2.1 // indirect
 	github.com/brandenc40/romannumeral v1.1.5 // indirect
 	github.com/dlclark/regexp2 v1.12.0 // indirect
-	github.com/dlclark/regexp2/v2 v2.1.1 // indirect
+	github.com/dlclark/regexp2/v2 v2.2.1 // indirect
 	github.com/dop251/goja v0.0.0-20260311135729-065cd970411c // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect
