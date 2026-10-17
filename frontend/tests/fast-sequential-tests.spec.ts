@@ -73,7 +73,7 @@ test.describe('Fast Sequential Tests - Single App Instance', () => {
     await expect(page.locator('#help-modal-content')).toBeAttached();
     await expect(page.locator('#help-modal-overlay')).toBeHidden();
 
-    await emitRuntimeEvent(page, 'show-help', 'About', '<div><h3>Markdown Reader</h3><p>Fast testing!</p></div>');
+    await emitRuntimeEvent(page, 'show-help', 'About', '<div><h3>TextoVista</h3><p>Fast testing!</p></div>');
 
     await expect(page.locator('#help-modal-overlay')).toBeVisible();
     await expect(page.locator('#help-modal-text')).toContainText('Fast testing!');

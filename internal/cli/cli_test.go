@@ -16,79 +16,79 @@ func TestGetArgs(t *testing.T) {
 	}{
 		{
 			name:         "no arguments",
-			args:         []string{"md-reader"},
+			args:         []string{"texto-vista"},
 			expectedFile: nil,
 			expectedHelp: nil,
 		},
 		{
 			name:         "file flag with value",
-			args:         []string{"md-reader", "-f", "test.md"},
+			args:         []string{"texto-vista", "-f", "test.md"},
 			expectedFile: stringPtr("test.md"),
 			expectedHelp: nil,
 		},
 		{
 			name:         "file flag long form with value",
-			args:         []string{"md-reader", "--file", "test.md"},
+			args:         []string{"texto-vista", "--file", "test.md"},
 			expectedFile: stringPtr("test.md"),
 			expectedHelp: nil,
 		},
 		{
 			name:         "positional file argument",
-			args:         []string{"md-reader", "test.md"},
+			args:         []string{"texto-vista", "test.md"},
 			expectedFile: stringPtr("test.md"),
 			expectedHelp: nil,
 		},
 		{
 			name:         "help flag short form",
-			args:         []string{"md-reader", "-h"},
+			args:         []string{"texto-vista", "-h"},
 			expectedFile: nil,
 			expectedHelp: boolPtr(true),
 		},
 		{
 			name:         "help flag long form",
-			args:         []string{"md-reader", "--help"},
+			args:         []string{"texto-vista", "--help"},
 			expectedFile: nil,
 			expectedHelp: boolPtr(true),
 		},
 		{
 			name:         "file flag and help flag",
-			args:         []string{"md-reader", "-f", "test.md", "-h"},
+			args:         []string{"texto-vista", "-f", "test.md", "-h"},
 			expectedFile: stringPtr("test.md"),
 			expectedHelp: boolPtr(true),
 		},
 		{
 			name:         "positional argument takes precedence when both specified",
-			args:         []string{"md-reader", "-f", "flag.md", "positional.md"},
+			args:         []string{"texto-vista", "-f", "flag.md", "positional.md"},
 			expectedFile: stringPtr("positional.md"),
 			expectedHelp: nil,
 		},
 		{
 			name:         "multiple positional arguments - first one wins",
-			args:         []string{"md-reader", "first.md", "second.md"},
+			args:         []string{"texto-vista", "first.md", "second.md"},
 			expectedFile: stringPtr("first.md"),
 			expectedHelp: nil,
 		},
 		{
 			name:         "unknown long flag is ignored",
-			args:         []string{"md-reader", "--unknown"},
+			args:         []string{"texto-vista", "--unknown"},
 			expectedFile: nil,
 			expectedHelp: nil,
 		},
 		{
 			name:         "unknown flag before file flag is ignored",
-			args:         []string{"md-reader", "--unknown", "--file", "test.md"},
+			args:         []string{"texto-vista", "--unknown", "--file", "test.md"},
 			expectedFile: stringPtr("test.md"),
 			expectedHelp: nil,
 		},
 		{
 			name:         "unknown short flag before positional file is ignored",
-			args:         []string{"md-reader", "-z", "test.md"},
+			args:         []string{"texto-vista", "-z", "test.md"},
 			expectedFile: stringPtr("test.md"),
 			expectedHelp: nil,
 		},
 		{
 			name:         "unknown equals flag is ignored",
-			args:         []string{"md-reader", "--unknown=value", "--file", "test.md"},
+			args:         []string{"texto-vista", "--unknown=value", "--file", "test.md"},
 			expectedFile: stringPtr("test.md"),
 			expectedHelp: nil,
 		},
@@ -148,27 +148,27 @@ func TestGetArgsAppNames(t *testing.T) {
 	}{
 		{
 			name:                       "standard executable name",
-			args:                       []string{"md-reader"},
-			expectedAppProgName:        "md-reader",
-			expectedAppProgNameWithExt: "md-reader",
+			args:                       []string{"texto-vista"},
+			expectedAppProgName:        "texto-vista",
+			expectedAppProgNameWithExt: "texto-vista",
 		},
 		{
 			name:                       "executable with extension",
-			args:                       []string{"md-reader.exe"},
-			expectedAppProgName:        "md-reader",
-			expectedAppProgNameWithExt: "md-reader.exe",
+			args:                       []string{"texto-vista.exe"},
+			expectedAppProgName:        "texto-vista",
+			expectedAppProgNameWithExt: "texto-vista.exe",
 		},
 		{
 			name:                       "full path executable",
-			args:                       []string{"/usr/local/bin/md-reader"},
-			expectedAppProgName:        "md-reader",
-			expectedAppProgNameWithExt: "md-reader",
+			args:                       []string{"/usr/local/bin/texto-vista"},
+			expectedAppProgName:        "texto-vista",
+			expectedAppProgNameWithExt: "texto-vista",
 		},
 		{
 			name:                       "windows path with extension",
-			args:                       []string{"C:\\Program Files\\md-reader\\md-reader.exe"},
-			expectedAppProgName:        "md-reader",
-			expectedAppProgNameWithExt: "md-reader.exe",
+			args:                       []string{"C:\\Program Files\\texto-vista\\texto-vista.exe"},
+			expectedAppProgName:        "texto-vista",
+			expectedAppProgNameWithExt: "texto-vista.exe",
 		},
 		{
 			name:                       "different executable name",
@@ -216,7 +216,7 @@ func TestGetArgsCmdlineOptions(t *testing.T) {
 	originalArgs := os.Args
 	defer func() { os.Args = originalArgs }()
 
-	os.Args = []string{"md-reader"}
+	os.Args = []string{"texto-vista"}
 
 	args, err := GetArgs()
 	if err != nil {
@@ -233,7 +233,7 @@ func TestGetArgsCmdlineOptions(t *testing.T) {
 	expectedElements := []string{
 		"<pre>",
 		"Usage:",
-		"md-reader",
+		"texto-vista",
 		"[options]",
 		"[filepath]",
 		"--file",
@@ -261,12 +261,12 @@ func TestGetArgsEmptyOsArgs(t *testing.T) {
 	}
 
 	// Should have reasonable defaults
-	if args.AppProgName == nil || *args.AppProgName != "md-reader" {
+	if args.AppProgName == nil || *args.AppProgName != "texto-vista" {
 		var got string
 		if args.AppProgName != nil {
 			got = *args.AppProgName
 		}
-		t.Errorf("GetArgs() AppProgName = %q, want %q", got, "md-reader")
+		t.Errorf("GetArgs() AppProgName = %q, want %q", got, "texto-vista")
 	}
 }
 

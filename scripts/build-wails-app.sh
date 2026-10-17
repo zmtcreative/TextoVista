@@ -6,7 +6,7 @@ usage() {
     cat <<'EOF'
 Usage: build-wails-app.sh [OPTIONS]
 
-Build the Linux Markdown Reader artifacts from inside WSL/Ubuntu.
+Build the Linux TextoVista artifacts from inside WSL/Ubuntu.
 
 Options:
   -b, --build        Build the Linux executable only
@@ -298,13 +298,13 @@ update_package_json() {
 }
 
 find_linux_binary() {
-    local explicit_path="$PROJECT_ROOT/build/bin/md-reader"
+    local explicit_path="$PROJECT_ROOT/build/bin/texto-vista"
     if [[ -f "$explicit_path" ]]; then
         printf '%s\n' "$explicit_path"
         return 0
     fi
 
-    find "$PROJECT_ROOT/build/bin" -maxdepth 1 -type f -name 'md-reader*' \
+    find "$PROJECT_ROOT/build/bin" -maxdepth 1 -type f -name 'texto-vista*' \
         ! -name '*.sha1' ! -name '*.sha256' ! -name '*.tar.gz' ! -name '*.deb' ! -name '*.exe' \
         | sort \
         | head -n 1
@@ -333,13 +333,13 @@ create_tar_package() {
     local stage_dir archive_path
 
     stage_dir="$PROJECT_ROOT/build/package/linux-tar-gz"
-    archive_path="$PROJECT_ROOT/build/bin/markdown-reader-${version}-linux-amd64.tar.gz"
+    archive_path="$PROJECT_ROOT/build/bin/texto-vista-${version}-linux-amd64.tar.gz"
 
     rm -rf "$stage_dir"
     mkdir -p "$stage_dir"
 
-    cp "$binary_path" "$stage_dir/md-reader"
-    chmod +x "$stage_dir/md-reader"
+    cp "$binary_path" "$stage_dir/texto-vista"
+    chmod +x "$stage_dir/texto-vista"
 
     tar -C "$stage_dir" -czf "$archive_path" .
 

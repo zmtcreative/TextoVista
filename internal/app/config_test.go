@@ -15,7 +15,7 @@ func newTestConfigManager(t *testing.T, args ...string) *ConfigManager {
 	t.Cleanup(func() { os.Args = originalArgs })
 
 	if len(args) == 0 {
-		os.Args = []string{"md-reader"}
+		os.Args = []string{"texto-vista"}
 	} else {
 		os.Args = args
 	}
@@ -271,7 +271,7 @@ func TestApplyCliOverrides(t *testing.T) {
 }
 
 func TestSaveAndLoadConfig(t *testing.T) {
-	cm := newTestConfigManager(t, "test-md-reader")
+	cm := newTestConfigManager(t, "test-texto-vista")
 
 	// Test that we can set and get configuration
 	newConfig := &Config{
@@ -314,7 +314,7 @@ func TestSaveAndLoadConfig(t *testing.T) {
 		t.Fatalf("SaveConfig() did not create config file %q: %v", cm.configPath, err)
 	}
 
-	wantConfigPath := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "test-md-reader", "test-md-reader.json")
+	wantConfigPath := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "test-texto-vista", "test-texto-vista.json")
 	if cm.configPath != wantConfigPath {
 		t.Fatalf("configPath = %q, want %q", cm.configPath, wantConfigPath)
 	}
@@ -332,28 +332,28 @@ func TestGetAppNameFromExecutable(t *testing.T) {
 	}{
 		{
 			name:     "simple name",
-			args:     []string{"md-reader"},
-			expected: "md-reader",
+			args:     []string{"texto-vista"},
+			expected: "texto-vista",
 		},
 		{
 			name:     "with extension",
-			args:     []string{"md-reader.exe"},
-			expected: "md-reader",
+			args:     []string{"texto-vista.exe"},
+			expected: "texto-vista",
 		},
 		{
 			name:     "full path",
-			args:     []string{"/usr/local/bin/md-reader"},
-			expected: "md-reader",
+			args:     []string{"/usr/local/bin/texto-vista"},
+			expected: "texto-vista",
 		},
 		{
 			name:     "windows path",
-			args:     []string{"C:\\Program Files\\md-reader\\md-reader.exe"},
-			expected: "md-reader",
+			args:     []string{"C:\\Program Files\\texto-vista\\texto-vista.exe"},
+			expected: "texto-vista",
 		},
 		{
 			name:     "empty args",
 			args:     []string{},
-			expected: "md-reader", // fallback
+			expected: "texto-vista", // fallback
 		},
 		{
 			name:     "different name",
@@ -604,8 +604,8 @@ func TestGetConfigDirUsesXDGConfigHome(t *testing.T) {
 	xdgHome := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", xdgHome)
 
-	configDir := getConfigDir("md-reader")
-	want := filepath.Join(xdgHome, "md-reader")
+	configDir := getConfigDir("texto-vista")
+	want := filepath.Join(xdgHome, "texto-vista")
 
 	if configDir != want {
 		t.Fatalf("getConfigDir() = %q, want %q", configDir, want)
@@ -623,7 +623,7 @@ func TestGetConfigDirFallsBackToCurrentDirectoryWhenHomeUnavailable(t *testing.T
 	defer func() { osUserHomeDir = originalHomeDir }()
 	t.Setenv("XDG_CONFIG_HOME", "")
 
-	configDir := getConfigDir("md-reader")
+	configDir := getConfigDir("texto-vista")
 	if configDir != "." {
 		t.Fatalf("getConfigDir() = %q, want %q", configDir, ".")
 	}

@@ -3,7 +3,7 @@ package app
 import (
 	"fmt"
 	"html"
-	"md-reader/internal/utils"
+	"texto-vista/internal/utils"
 	"sort"
 	"strings"
 )

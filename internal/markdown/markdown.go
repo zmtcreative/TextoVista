@@ -8,10 +8,10 @@ import (
 	"slices"
 	"strings"
 
-	"md-reader/internal/gm-ext/htmlsanitize"
-	utils "md-reader/internal/utils"
+	"texto-vista/internal/gm-ext/htmlsanitize"
+	utils "texto-vista/internal/utils"
 
-	// "md-reader/internal/gm-ext/sectionwrapper"
+	// "texto-vista/internal/gm-ext/sectionwrapper"
 	alertcallouts "github.com/zmtcreative/gm-alert-callouts"
 	sectionwrapper "github.com/zmtcreative/gm-sectionwrapper"
 	"github.com/d2lang/d2/d2layouts/d2elklayout"

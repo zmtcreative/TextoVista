@@ -15,7 +15,7 @@
             class="window-title"
             @mousedown="startDrag"
           >
-            <span>⚙️ Settings - Markdown Reader</span>
+            <span>⚙️ Settings - TextoVista</span>
           </div>
           <div class="window-controls">
             <button

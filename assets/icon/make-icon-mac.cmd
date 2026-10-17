@@ -4,7 +4,7 @@ SETLOCAL ENABLEDELAYEDEXPANSION
 :: It is assumed that ImageMagick is in the system path.
 :: Download: https://www.imagemagick.org/script/download.php
 
-SET MD_MASTER_SVG=md-reader-icon.svg
+SET MD_MASTER_SVG=texto-vista-icon.svg
 SET MD_ICON_FILENAME=
 
 SET OCD=%CD%

@@ -3,7 +3,7 @@ package main
 import (
 	"embed"
 
-	"md-reader/internal/cli"
+	"texto-vista/internal/cli"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -21,7 +21,7 @@ var (
 
 func buildWailsAppOptions(mdrApp *App) *options.App {
 	return &options.App{
-		Title:     "Markdown Reader",
+		Title:     "TextoVista",
 		MinWidth:  616,
 		MinHeight: 539,
 		// MaxWidth: 1296,

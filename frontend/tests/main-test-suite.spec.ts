@@ -3,7 +3,7 @@ import WailsDevHelper from './wails-dev-helper';
 import { Page } from '@playwright/test';
 import { emitRuntimeEvent, expectTheme } from './runtime-test-helpers';
 
-test.describe("Markdown Reader - Optimized Test Suite\n", () => {
+test.describe("TextoVista - Optimized Test Suite\n", () => {
   let wailsDev: WailsDevHelper;
   let page: Page;
 
@@ -66,7 +66,7 @@ test.describe("Markdown Reader - Optimized Test Suite\n", () => {
 
       // Verify page title
       const title = await page.title();
-      expect(title).toBe('Markdown Reader');
+      expect(title).toBe('TextoVista');
 
       await expectTheme(page, 'light');
 
@@ -116,12 +116,12 @@ test.describe("Markdown Reader - Optimized Test Suite\n", () => {
       await emitRuntimeEvent(
         page,
         'show-help',
-        'About Markdown Reader',
-        '<div><h3>Markdown Reader</h3><p>Version: 0.0.0-dev</p><p>Optimized Test Suite</p></div>'
+        'About TextoVista',
+        '<div><h3>TextoVista</h3><p>Version: 0.0.0-dev</p><p>Optimized Test Suite</p></div>'
       );
 
       await expect(page.locator('#help-modal-overlay')).toBeVisible();
-      await expect(page.locator('.help-body')).toContainText('Markdown Reader');
+      await expect(page.locator('.help-body')).toContainText('TextoVista');
       await expect(page.locator('.help-body')).toContainText('Optimized Test Suite');
 
       await page.click('#help-modal-close');

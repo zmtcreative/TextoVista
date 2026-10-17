@@ -1,4 +1,4 @@
-module md-reader
+module texto-vista
 
 go 1.27.0
 

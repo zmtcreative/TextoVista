@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 
 ### Notes
 
+- Rebrand application name to **TextoVista** and update Go module / binary name to `texto-vista`.
 - Ongoing development updates will be collected here until the next tagged release.
 
 ## v0.5.2 - 2026-07-05

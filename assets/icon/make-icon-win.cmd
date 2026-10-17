@@ -6,7 +6,7 @@ SET ERR=0
 @REM It is assumed that ImageMagick is in the system path.
 @REM Download: https://www.imagemagick.org/script/download.php
 
-SET MDR_ICON_SVG=md-reader-icon.svg
+SET MDR_ICON_SVG=texto-vista-icon.svg
 SET PNG_SIZES=16 20 24 30 32 36 40 48 60 64 72 80 96 100 125 150 200 256 400 512
 SET PNG_FILES=
 
@@ -31,8 +31,8 @@ FOR %%S IN (%PNG_SIZES%%) DO (
 @REM Create the ICO file from the PNG files created
 CD "!PNGDIR!"
 ECHO.
-ECHO Creating ICO file 'md-reader.ico'...
-magick !PNG_FILES! "..\md-reader.ico"
+ECHO Creating ICO file 'texto-vista.ico'...
+magick !PNG_FILES! "..\texto-vista.ico"
 CD ..
 
 @REM Remove the temporary PNG folder

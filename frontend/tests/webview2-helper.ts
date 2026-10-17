@@ -26,7 +26,7 @@ export class WebView2Helper {
     }
 
     // Production build approach
-    const appPath = path.resolve('../build/bin/md-reader.exe');
+    const appPath = path.resolve('../build/bin/texto-vista.exe');
     console.log(`📂 Application path: ${appPath}`);
 
     // Set environment variables for WebView2 debugging

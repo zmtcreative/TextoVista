@@ -18,7 +18,7 @@ export class WailsDevHelper {
   }
 
   private resolveRuntimeMode(runtimeMode?: RuntimeMode): RuntimeMode {
-    const envRuntimeMode = process.env.MARKDOWN_READER_PLAYWRIGHT_RUNTIME_MODE;
+    const envRuntimeMode = process.env.TEXTOVISTA_PLAYWRIGHT_RUNTIME_MODE || process.env.MARKDOWN_READER_PLAYWRIGHT_RUNTIME_MODE;
     if (envRuntimeMode === 'headless' || envRuntimeMode === 'interactive') {
       return envRuntimeMode;
     }

@@ -15,8 +15,8 @@ import (
 	encodingUnicode "golang.org/x/text/encoding/unicode"
 	"golang.org/x/text/transform"
 
-	"md-reader/internal/markdown"
-	"md-reader/internal/utils"
+	"texto-vista/internal/markdown"
+	"texto-vista/internal/utils"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"github.com/yuin/goldmark"

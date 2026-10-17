@@ -1,4 +1,4 @@
-name: Test/Build/Release Markdown Reader
+name: Test/Build/Release TextoVista
 
 on:
   push:
@@ -197,7 +197,7 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: markdown-reader-windows
+          name: texto-vista-windows
           path: build/bin/**
           if-no-files-found: error
 
@@ -252,28 +252,28 @@ jobs:
           STAGE_DIR="build/package/linux-tar-gz"
           mkdir -p "$STAGE_DIR"
 
-          BINARY_PATH=$(find build/bin -maxdepth 1 -type f -name 'md-reader*' ! -name '*.sha*' | head -n 1)
+          BINARY_PATH=$(find build/bin -maxdepth 1 -type f -name 'texto-vista*' ! -name '*.sha*' | head -n 1)
           if [ -z "$BINARY_PATH" ]; then
             echo "No Linux binary found in build/bin" >&2
             exit 1
           fi
 
-          cp "$BINARY_PATH" "$STAGE_DIR/md-reader"
-          chmod +x "$STAGE_DIR/md-reader"
+          cp "$BINARY_PATH" "$STAGE_DIR/texto-vista"
+          chmod +x "$STAGE_DIR/texto-vista"
 
-          tar -C "$STAGE_DIR" -czf "build/bin/markdown-reader-${VERSION}-linux-amd64.tar.gz" .
+          tar -C "$STAGE_DIR" -czf "build/bin/texto-vista-${VERSION}-linux-amd64.tar.gz" .
 
       - name: Write archive hashes
         run: |
           set -euo pipefail
-          ARCHIVE=$(find build/bin -maxdepth 1 -type f -name 'markdown-reader-*-linux-amd64.tar.gz' | head -n 1)
+          ARCHIVE=$(find build/bin -maxdepth 1 -type f -name 'texto-vista-*-linux-amd64.tar.gz' | head -n 1)
           sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
           sha1sum "$ARCHIVE" > "$ARCHIVE.sha1"
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: markdown-reader-linux
+          name: texto-vista-linux
           path: |
             build/bin/*.tar.gz
             build/bin/*.tar.gz.sha1
@@ -298,13 +298,13 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: markdown-reader-windows
+          name: texto-vista-windows
           path: release-assets/windows
 
       - name: Download Linux artifacts
         uses: actions/download-artifact@v8
         with:
-          name: markdown-reader-linux
+          name: texto-vista-linux
           path: release-assets/linux
 
       - name: Prepare release notes for tag

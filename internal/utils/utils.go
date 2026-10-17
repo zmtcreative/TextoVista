@@ -14,7 +14,7 @@ import (
 // with and without the file extension.
 func GetExecutableBaseName() (withExt, withoutExt string) {
 	if len(os.Args) == 0 {
-		return "md-reader", "md-reader"
+		return "texto-vista", "texto-vista"
 	}
 
 	execPath := os.Args[0]
@@ -32,7 +32,7 @@ func GetExecutableBaseName() (withExt, withoutExt string) {
 
 	// Use fallback if empty or invalid
 	if baseName == "" || baseName == "." {
-		return "md-reader", "md-reader"
+		return "texto-vista", "texto-vista"
 	}
 
 	ext := filepath.Ext(baseName)

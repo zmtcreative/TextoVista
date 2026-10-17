@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"md-reader/internal/utils"
+	"texto-vista/internal/utils"
 
 	flag "github.com/spf13/pflag"
 )
@@ -31,7 +31,7 @@ var recognizedFlags = map[string]bool{
 func GetArgs() (*CliArgs, error) {
     // Use a new, local FlagSet to avoid conflicts with the global one,
     // which is a best practice for robust CLI parsing.
-    fs := flag.NewFlagSet("md-reader", flag.ContinueOnError)
+    fs := flag.NewFlagSet("texto-vista", flag.ContinueOnError)
 
     args := &CliArgs{}
 

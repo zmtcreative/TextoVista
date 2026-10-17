@@ -12,7 +12,7 @@ param(
     [switch]$ShowReport = $false
 )
 
-Write-Host "🚀 Markdown Reader - Optimized Playwright Testing Script" -ForegroundColor Cyan
+Write-Host "🚀 TextoVista - Optimized Playwright Testing Script" -ForegroundColor Cyan
 Write-Host "======================================================" -ForegroundColor Cyan
 
 # Function to check if a command exists
@@ -131,10 +131,13 @@ Write-Host "   • Run optimized test suite with shared app instances" -Foregrou
 Write-Host "   • Clean up Wails dev server when complete" -ForegroundColor Gray
 
 try {
-    $previousRuntimeMode = $env:MARKDOWN_READER_PLAYWRIGHT_RUNTIME_MODE
+    $previousRuntimeMode = $env:TEXTOVISTA_PLAYWRIGHT_RUNTIME_MODE
+    $previousLegacyRuntimeMode = $env:MARKDOWN_READER_PLAYWRIGHT_RUNTIME_MODE
     if ($requestedRuntimeMode) {
+        $env:TEXTOVISTA_PLAYWRIGHT_RUNTIME_MODE = $requestedRuntimeMode
         $env:MARKDOWN_READER_PLAYWRIGHT_RUNTIME_MODE = $requestedRuntimeMode
     } else {
+        Remove-Item Env:TEXTOVISTA_PLAYWRIGHT_RUNTIME_MODE -ErrorAction SilentlyContinue
         Remove-Item Env:MARKDOWN_READER_PLAYWRIGHT_RUNTIME_MODE -ErrorAction SilentlyContinue
     }
 
@@ -144,7 +147,12 @@ try {
     $testExitCode = $LASTEXITCODE
 
     if ($null -ne $previousRuntimeMode) {
-        $env:MARKDOWN_READER_PLAYWRIGHT_RUNTIME_MODE = $previousRuntimeMode
+        $env:TEXTOVISTA_PLAYWRIGHT_RUNTIME_MODE = $previousRuntimeMode
+    } else {
+        Remove-Item Env:TEXTOVISTA_PLAYWRIGHT_RUNTIME_MODE -ErrorAction SilentlyContinue
+    }
+    if ($null -ne $previousLegacyRuntimeMode) {
+        $env:MARKDOWN_READER_PLAYWRIGHT_RUNTIME_MODE = $previousLegacyRuntimeMode
     } else {
         Remove-Item Env:MARKDOWN_READER_PLAYWRIGHT_RUNTIME_MODE -ErrorAction SilentlyContinue
     }
@@ -156,7 +164,12 @@ try {
     }
 } catch {
     if ($null -ne $previousRuntimeMode) {
-        $env:MARKDOWN_READER_PLAYWRIGHT_RUNTIME_MODE = $previousRuntimeMode
+        $env:TEXTOVISTA_PLAYWRIGHT_RUNTIME_MODE = $previousRuntimeMode
+    } else {
+        Remove-Item Env:TEXTOVISTA_PLAYWRIGHT_RUNTIME_MODE -ErrorAction SilentlyContinue
+    }
+    if ($null -ne $previousLegacyRuntimeMode) {
+        $env:MARKDOWN_READER_PLAYWRIGHT_RUNTIME_MODE = $previousLegacyRuntimeMode
     } else {
         Remove-Item Env:MARKDOWN_READER_PLAYWRIGHT_RUNTIME_MODE -ErrorAction SilentlyContinue
     }

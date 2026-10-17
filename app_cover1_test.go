@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	internalapp "md-reader/internal/app"
-	"md-reader/internal/cli"
+	internalapp "texto-vista/internal/app"
+	"texto-vista/internal/cli"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/wailsapp/wails/v2/pkg/menu"
@@ -83,12 +83,12 @@ func newSection1TestApp(t *testing.T) *App {
 
 	originalArgs := os.Args
 	t.Cleanup(func() { os.Args = originalArgs })
-	os.Args = []string{"test-md-reader.exe"}
+	os.Args = []string{"test-texto-vista.exe"}
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	cliArgs := &cli.CliArgs{
-		AppProgName:        stringPtr("test-md-reader"),
-		AppProgNameWithExt: stringPtr("test-md-reader.exe"),
+		AppProgName:        stringPtr("test-texto-vista"),
+		AppProgNameWithExt: stringPtr("test-texto-vista.exe"),
 		CmdlineOptions:     stringPtr("--file <path>"),
 	}
 
@@ -125,7 +125,7 @@ func captureAppRuntime(t *testing.T) (*[]capturedAppEvent, *bool) {
 }
 
 func section1ConfigPath() string {
-	return filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "test-md-reader", "test-md-reader.json")
+	return filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "test-texto-vista", "test-texto-vista.json")
 }
 
 func TestAppStartupInitializesManagers(t *testing.T) {
@@ -176,13 +176,13 @@ func TestAppDomReadyWithoutInitialFileEmitsWelcomePayload(t *testing.T) {
 	if !ok {
 		t.Fatalf("markdown-rendered payload type = %T, want MarkdownRenderData", (*events)[0].data[0])
 	}
-	if renderData.Title != "Welcome to Markdown Reader!" {
+	if renderData.Title != "Welcome to TextoVista!" {
 		t.Fatalf("renderData.Title = %q, want welcome title", renderData.Title)
 	}
 	if !strings.Contains(renderData.HTML, "No File Loaded") {
 		t.Fatalf("renderData.HTML missing no-file message: %q", renderData.HTML)
 	}
-	if !strings.Contains(renderData.HTML, "test-md-reader --file path/to/your/file.md") {
+	if !strings.Contains(renderData.HTML, "test-texto-vista --file path/to/your/file.md") {
 		t.Fatalf("renderData.HTML missing CLI usage hint: %q", renderData.HTML)
 	}
 	if !strings.Contains(renderData.FrontmatterHTML, "No frontmatter") {

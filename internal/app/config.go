@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"md-reader/internal/utils"
+	"texto-vista/internal/utils"
 
 	"github.com/spf13/viper"
 )

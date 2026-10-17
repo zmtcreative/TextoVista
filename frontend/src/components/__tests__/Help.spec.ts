@@ -13,11 +13,11 @@ describe('Help.vue', () => {
       },
     });
 
-    wrapper.vm.showHelpModalDialog('About Markdown Reader', '<p>Rendered help text</p>');
+    wrapper.vm.showHelpModalDialog('About TextoVista', '<p>Rendered help text</p>');
     await wrapper.vm.$nextTick();
 
     expect(wrapper.get('#help-modal-overlay').isVisible()).toBe(true);
-    expect(wrapper.get('#help-modal-content').text()).toContain('About Markdown Reader');
+    expect(wrapper.get('#help-modal-content').text()).toContain('About TextoVista');
     expect(wrapper.get('#help-modal-text').html()).toContain('Rendered help text');
   });
 

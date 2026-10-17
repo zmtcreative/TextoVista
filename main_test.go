@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"md-reader/internal/cli"
+	"texto-vista/internal/cli"
 )
 
 func newMainSection9App(t *testing.T) *App {
@@ -13,12 +13,12 @@ func newMainSection9App(t *testing.T) *App {
 
 	originalArgs := os.Args
 	t.Cleanup(func() { os.Args = originalArgs })
-	os.Args = []string{"md-reader.exe"}
+	os.Args = []string{"texto-vista.exe"}
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	cliArgs := &cli.CliArgs{
-		AppProgName:        stringPtr("md-reader"),
-		AppProgNameWithExt: stringPtr("md-reader.exe"),
+		AppProgName:        stringPtr("texto-vista"),
+		AppProgNameWithExt: stringPtr("texto-vista.exe"),
 		CmdlineOptions:     stringPtr("--file <path>"),
 	}
 
@@ -37,8 +37,8 @@ func TestBuildWailsAppOptions(t *testing.T) {
 	if appOptions == nil {
 		t.Fatal("buildWailsAppOptions() returned nil")
 	}
-	if appOptions.Title != "Markdown Reader" {
-		t.Fatalf("Title = %q, want %q", appOptions.Title, "Markdown Reader")
+	if appOptions.Title != "TextoVista" {
+		t.Fatalf("Title = %q, want %q", appOptions.Title, "TextoVista")
 	}
 	if appOptions.MinWidth != 616 || appOptions.MinHeight != 539 {
 		t.Fatalf("min size = %dx%d, want 616x539", appOptions.MinWidth, appOptions.MinHeight)

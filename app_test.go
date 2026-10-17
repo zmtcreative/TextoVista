@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"md-reader/internal/cli"
+	"texto-vista/internal/cli"
 )
 
 func TestBoolFromPtr(t *testing.T) {
@@ -102,9 +102,9 @@ func TestSetAbout(t *testing.T) {
 	}{
 		{
 			name:               "standard app name",
-			appProgNameWithExt: "md-reader.exe",
+			appProgNameWithExt: "texto-vista.exe",
 			expectedContains: []string{
-				"md-reader.exe",
+				"texto-vista.exe",
 				"Copyright 2026",
 				"Version",
 				Date, // Use the actual variable instead of "BuildDate"
@@ -179,8 +179,8 @@ func TestNewApp(t *testing.T) {
 				InitialFile:         nil,
 				ShowHelp:            nil,
 				CmdlineOptions:      stringPtr("test options"),
-				AppProgName:         stringPtr("md-reader"),
-				AppProgNameWithExt:  stringPtr("md-reader.exe"),
+				AppProgName:         stringPtr("texto-vista"),
+				AppProgNameWithExt:  stringPtr("texto-vista.exe"),
 			},
 			validate: func(t *testing.T, app *App) {
 				if app.currentFile != "" {
@@ -189,11 +189,11 @@ func TestNewApp(t *testing.T) {
 				if app.showHelp != false {
 					t.Errorf("NewApp() showHelp = %v, want false", app.showHelp)
 				}
-				if app.appProgName != "md-reader" {
-					t.Errorf("NewApp() appProgName = %q, want %q", app.appProgName, "md-reader")
+				if app.appProgName != "texto-vista" {
+					t.Errorf("NewApp() appProgName = %q, want %q", app.appProgName, "texto-vista")
 				}
-				if app.appProgNameWithExt != "md-reader.exe" {
-					t.Errorf("NewApp() appProgNameWithExt = %q, want %q", app.appProgNameWithExt, "md-reader.exe")
+				if app.appProgNameWithExt != "texto-vista.exe" {
+					t.Errorf("NewApp() appProgNameWithExt = %q, want %q", app.appProgNameWithExt, "texto-vista.exe")
 				}
 				if app.cmdlineOptions != "test options" {
 					t.Errorf("NewApp() cmdlineOptions = %q, want %q", app.cmdlineOptions, "test options")
@@ -237,11 +237,11 @@ func TestNewApp(t *testing.T) {
 				if app.showHelp != false {
 					t.Errorf("NewApp() showHelp = %v, want false", app.showHelp)
 				}
-				if app.appProgName != "md-reader" {
-					t.Errorf("NewApp() appProgName = %q, want %q", app.appProgName, "md-reader")
+				if app.appProgName != "texto-vista" {
+					t.Errorf("NewApp() appProgName = %q, want %q", app.appProgName, "texto-vista")
 				}
-				if app.appProgNameWithExt != "md-reader" {
-					t.Errorf("NewApp() appProgNameWithExt = %q, want %q", app.appProgNameWithExt, "md-reader")
+				if app.appProgNameWithExt != "texto-vista" {
+					t.Errorf("NewApp() appProgNameWithExt = %q, want %q", app.appProgNameWithExt, "texto-vista")
 				}
 			},
 		},
@@ -311,8 +311,8 @@ func TestAppConfigDelegation(t *testing.T) {
 
 func TestAppVersionInfo(t *testing.T) {
 	cliArgs := &cli.CliArgs{
-		AppProgName:        stringPtr("test-md-reader"),
-		AppProgNameWithExt: stringPtr("test-md-reader.exe"),
+		AppProgName:        stringPtr("test-texto-vista"),
+		AppProgNameWithExt: stringPtr("test-texto-vista.exe"),
 	}
 
 	app := NewApp(cliArgs)
@@ -327,7 +327,7 @@ func TestAppVersionInfo(t *testing.T) {
 
 	// Check that version info contains expected elements
 	expectedElements := []string{
-		"test-md-reader.exe",
+		"test-texto-vista.exe",
 		"Copyright 2026",
 	}
 

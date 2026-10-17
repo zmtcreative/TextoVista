@@ -1,4 +1,4 @@
-# Markdown Reader
+# TextoVista
 
 [![License](https://img.shields.io/github/license/zmtcreative/markdown-reader)](./LICENSE.md)
 ![GitHub Release](https://img.shields.io/github/v/release/zmtcreative/markdown-reader?sort=semver)
@@ -7,7 +7,7 @@ Copyright &copy; 2026 ZMT Creative LLC. All rights reserved.
 
 ## About and Features
 
-This is a Markdown Reader written in Go using the Wails + Vue framework.
+TextoVista is a Markdown reader written in Go using the Wails + Vue framework.
 
 The reader supports the current CommonMark spec plus a wide range of Extension:
 

@@ -14,9 +14,9 @@ import (
 	"text/template"
 	"time"
 
-	"md-reader/internal/app"
+	"texto-vista/internal/app"
 
-	"md-reader/internal/cli"
+	"texto-vista/internal/cli"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/tidwall/gjson"
@@ -130,7 +130,7 @@ func NewApp(cliArgs *cli.CliArgs) *App {
 	// finalConfig := configManager.GetConfig()
 
 	// Handle app name
-	appProgNameWithExt := stringFromPtr(cliArgs.AppProgNameWithExt, "md-reader")
+	appProgNameWithExt := stringFromPtr(cliArgs.AppProgNameWithExt, "texto-vista")
 	setAboutString, err := setAbout(appProgNameWithExt)
 	if err != nil {
 		// Log the error and use a fallback version string
@@ -139,8 +139,8 @@ func NewApp(cliArgs *cli.CliArgs) *App {
 	}
 
 	return &App{
-		currentFile:        stringFromPtr(cliArgs.InitialFile, ""),          // Default to empty, can be set via CLI flag
-		appProgName:        stringFromPtr(cliArgs.AppProgName, "md-reader"), // Store the application name without extension
+		currentFile:        stringFromPtr(cliArgs.InitialFile, ""),             // Default to empty, can be set via CLI flag
+		appProgName:        stringFromPtr(cliArgs.AppProgName, "texto-vista"), // Store the application name without extension
 		appProgNameWithExt: appProgNameWithExt,                              // Store the application name with extension
 		showHelp:           boolFromPtr(cliArgs.ShowHelp, false),            // Default to false, can be set via CLI flag
 		versionInfo:        setAboutString,                                  // Set version info using the application name with extension
@@ -240,7 +240,7 @@ func (a *App) domReady(ctx context.Context) {
 		}
 	} else {
 		// Emit a welcome message if no initial file is provided
-		renderData.Title = "Welcome to Markdown Reader!"
+		renderData.Title = "Welcome to TextoVista!"
 		welcomeHTML := "<h1>" + renderData.Title + "</h1>" +
 			"<h2>No File Loaded</h2>" +
 			"<p>Open a Markdown file using the <code>File &gt; Open</code> menu option or provide a path via the command line (e.g., <code>" +
