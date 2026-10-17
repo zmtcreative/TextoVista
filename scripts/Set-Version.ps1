@@ -1,14 +1,22 @@
 <#
     .SYNOPSIS
-        Creates a new Git tag and updates version numbers across project files.
+        Sets and bumps project versions across target files, commits changes, and optionally manages Git tags.
     .DESCRIPTION
-        Calculates and applies the next semantic version and Windows 4-part numeric
-        version to wails.json, package.json, info.json, and project.nsi. Commits
-        the changes, creates an annotated Git tag, and pushes to remote.
-    .PARAMETER TagName
-        The explicit version or Git tag to set (e.g., 'v0.6.0' or '0.6.0').
+        Uses wails.json as the Source of Truth for the current project version.
+        Calculates the next semantic version and Windows 4-part numeric version,
+        prompts the user to confirm the bump, updates wails.json, package.json,
+        info.json, and project.nsi, commits the changes with a Conventional Commit
+        message ('chore(release): bump version to <version>'), and pushes the commit
+        to the remote repository.
+
+        Optionally creates an annotated Git tag locally using the updated version as
+        the proposed tag (-CreateVersionTag), and only pushes the tag to the remote
+        repository when explicitly requested (-PushTag).
+    .PARAMETER NewVersion
+        The explicit version or Git tag to set (e.g., '0.6.0' or 'v0.6.0').
+        Aliases: -Version, -TagName, -TargetVersion.
     .PARAMETER Message
-        The commit and tag message. Defaults to 'Version X.Y.Z (vX.Y.Z)'.
+        The commit and tag message. Defaults to 'chore(release): bump version to X.Y.Z'.
     .PARAMETER Bump
         The version segment to increment: 'Patch', 'Minor', 'Major', or 'Prerelease'.
     .PARAMETER IncrementPatch
@@ -29,27 +37,49 @@
         Convenience switch to set the prerelease stage to rc. Alias: -SetRC.
     .PARAMETER ReleaseVersion
         Finalize a prerelease into a stable release (e.g., 0.5.2-beta1 -> 0.5.2). Alias: -Release.
+    .PARAMETER CreateVersionTag
+        Create an annotated Git tag locally using the new version from wails.json as the proposed tag.
+        Prompts the user to verify or change the tag name before applying. Alias: -Tag, -CreateTag.
+    .PARAMETER PushTag
+        Push the Git tag to the remote repository.
+        - If used with -CreateVersionTag: immediately pushes the confirmed tag to remote.
+        - If used without -CreateVersionTag: inspects the most recent Git tag and prompts to push it.
     .PARAMETER ShowCurrentVersion
-        Show current Git tag and project file versions without making changes. Alias: -Show, -Current.
+        Show current version in wails.json, most recent Git tag, and target files status without making changes.
+        Alias: -Show, -Current.
     .PARAMETER DryRun
-        Preview all file changes and Git operations without modifying anything. Alias for -WhatIf.
-    .PARAMETER Push
-        Automatically push commit and tag to remote Git repository without interactive prompt.
+        Preview all file changes, commit details, and Git operations without modifying anything.
+        Alias for -WhatIf.
     .PARAMETER NoPush
-        Commit and tag locally, but do not push to the remote repository (skips push prompt).
+        Commit changes locally, but do not push commits to the remote repository.
     .PARAMETER NonInteractive
         Run without interactive confirmation prompts. Alias: -Force, -Yes.
+    .EXAMPLE
+        ./scripts/Set-Version.ps1 -IncrementPatch
+        Bumps patch version in wails.json and project files, commits with 'chore(release): bump version to X.Y.Z',
+        and pushes the commit to origin. Does not create a Git tag.
+    .EXAMPLE
+        ./scripts/Set-Version.ps1 -Minor -CreateVersionTag
+        Bumps minor version, commits and pushes the commit, prompts to create local Git tag 'vX.Y.0',
+        and creates the tag locally only (does not push tag).
+    .EXAMPLE
+        ./scripts/Set-Version.ps1 -IncrementPatch -CreateVersionTag -PushTag
+        Bumps patch version, commits, pushes commit, prompts to verify tag, creates tag locally,
+        and pushes the tag to origin.
+    .EXAMPLE
+        ./scripts/Set-Version.ps1 -PushTag
+        Standalone tag push: finds most recent Git tag, prompts for verification, and pushes to origin.
 #>
 
 #Requires -Version 7.0
 
 [CmdletBinding(SupportsShouldProcess = $true)]
 param (
-    [Parameter(Position = 0, HelpMessage = "The explicit version or Git tag to create.")]
-    [Alias("Version")]
-    [string]$TagName = "",
+    [Parameter(Position = 0, HelpMessage = "The explicit target version or Git tag to set (e.g., '0.6.0' or 'v0.6.0').")]
+    [Alias("Version", "TagName", "TargetVersion")]
+    [string]$NewVersion = "",
 
-    [Parameter(HelpMessage = "The message for the new Git tag and commit.")]
+    [Parameter(HelpMessage = "The commit message (and tag message if created). Defaults to 'chore(release): bump version to <version>'.")]
     [string]$Message = "",
 
     [Parameter(HelpMessage = "The version segment to increment.")]
@@ -90,17 +120,22 @@ param (
     [Alias("Release")]
     [switch]$ReleaseVersion,
 
-    [Parameter(HelpMessage = "Show current versions without making changes.")]
+    [Parameter(HelpMessage = "Create an annotated Git tag locally using the updated version as the proposed tag.")]
+    [Alias("Tag", "CreateTag")]
+    [switch]$CreateVersionTag,
+
+    [Parameter(HelpMessage = "Push Git tag to remote repository.")]
+    [Alias("Push")]
+    [switch]$PushTag,
+
+    [Parameter(HelpMessage = "Show current versions from wails.json, Git tags, and target files without making changes.")]
     [Alias("show", "current")]
     [switch]$ShowCurrentVersion,
 
     [Parameter(HelpMessage = "Preview planned changes without writing to disk or Git.")]
     [switch]$DryRun,
 
-    [Parameter(HelpMessage = "Automatically push commit and tag to remote Git repository.")]
-    [switch]$Push,
-
-    [Parameter(HelpMessage = "Do not push commit or tag to remote Git repository.")]
+    [Parameter(HelpMessage = "Do not push commits or tags to the remote repository.")]
     [switch]$NoPush,
 
     [Parameter(HelpMessage = "Run non-interactively without confirmation prompts.")]
@@ -121,6 +156,12 @@ $ProjectRoot = if ($ScriptDir -match '[\\/]scripts[\\/]?$') {
 
 if (-not (Test-Path -Path (Join-Path $ProjectRoot "go.mod"))) {
     Write-Host -ForegroundColor Red "Error: Could not locate 'go.mod' in project root: $ProjectRoot"
+    exit 1
+}
+
+$WailsConfigPath = Join-Path $ProjectRoot "wails.json"
+if (-not (Test-Path -Path $WailsConfigPath -PathType Leaf)) {
+    Write-Host -ForegroundColor Red "Error: Source of truth 'wails.json' not found at: $WailsConfigPath"
     exit 1
 }
 
@@ -158,7 +199,28 @@ $TargetFiles = @(
     }
 )
 
-# --- Pure Functions: Version Parsing & Formatting ---
+# --- Version Parsing, Formatting, and Source of Truth Functions ---
+
+function Get-CurrentVersionFromWails {
+    param ([string]$Path)
+    if (-not (Test-Path -Path $Path -PathType Leaf)) {
+        throw "Source of truth 'wails.json' not found at: $Path"
+    }
+    $raw = Get-Content -Raw -Path $Path -Encoding utf8
+    try {
+        $json = $raw | ConvertFrom-Json
+        if ($json.info -and -not [string]::IsNullOrWhiteSpace($json.info.productVersion)) {
+            return $json.info.productVersion.Trim()
+        }
+    } catch {
+        # Fallback to regex if ConvertFrom-Json fails
+    }
+
+    if ($raw -match '"productVersion"\s*:\s*"([^"]+)"') {
+        return $Matches[1].Trim()
+    }
+    throw "Could not determine 'productVersion' from source of truth: $Path"
+}
 
 function Get-MostRecentTag {
     $tag = git describe --tags --abbrev=0 2>$null
@@ -206,7 +268,6 @@ function Format-BuildVersions {
     $tagName = "v$semver"
 
     # Windows 4-part numeric version: Major.Minor.Patch.Suffix
-    # 4-digit scheme (< 65535 UINT16 ceiling):
     # Final releases use fixed 9000 so they always compare as newer than any prerelease.
     # Prereleases: alpha -> 1000 + n, beta -> 2000 + n, rc -> 3000 + n, patch -> 4000 + n
     $stages = @('alpha', 'beta', 'rc', 'patch')
@@ -246,7 +307,7 @@ function Calculate-NextVersion {
     if (-not [string]::IsNullOrWhiteSpace($ExplicitTag)) {
         $parsed = Parse-VersionString -Tag $ExplicitTag
         if (-not $parsed.IsValid) {
-            throw "Invalid explicit version/tag provided: '$ExplicitTag'. Must follow SemVer (e.g., 'v0.6.0' or '0.6.0-beta1')."
+            throw "Invalid explicit version/tag provided: '$ExplicitTag'. Must follow SemVer (e.g., '0.6.0' or 'v0.6.0-beta1')."
         }
         return $parsed
     }
@@ -360,7 +421,7 @@ function Get-FileDiffPlan {
     foreach ($target in $TargetFiles) {
         $fullPath = Join-Path $BaseDir $target.RelPath
         $val = if ($target.Format -eq "SemVer") { $SemVer } else { $FileVersion }
-        $content = Get-Content -Raw -Path $fullPath
+        $content = Get-Content -Raw -Path $fullPath -Encoding utf8
         $newContent = $content
         $lineDiffs = @()
 
@@ -403,7 +464,7 @@ function Apply-FileUpdates {
             Set-Content -Path $plan.FullPath -Value $plan.NewContent -Encoding utf8 -NoNewline
             Write-Host -ForegroundColor Green "  Updated: $($plan.RelPath) -> $($plan.TargetVal)"
         } else {
-            Write-Host -ForegroundColor Yellow "  No changes needed: $($plan.RelPath)"
+            Write-Host -ForegroundColor DarkGray "  No changes needed: $($plan.RelPath)"
         }
     }
 }
@@ -412,12 +473,6 @@ function Apply-FileUpdates {
 
 Push-Location $ProjectRoot
 try {
-    # 1. Resolve parameters & normalize switches
-    if ($Push -and $NoPush) {
-        Write-Host -ForegroundColor Red "Error: Cannot specify both -Push and -NoPush."
-        exit 1
-    }
-
     $isDryRun = $DryRun -or $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('WhatIf')
 
     $stage = $PrereleaseStage
@@ -431,27 +486,37 @@ try {
     elseif ($IncrementPatch) { $bumpAction = "Patch" }
     elseif ($IncrementPrerelease) { $bumpAction = "Prerelease" }
 
-    # 2. Get current tag & parse current version
-    $currentTag = Get-MostRecentTag
-    if ($currentTag) {
-        $currentObj = Parse-VersionString -Tag $currentTag
-    } else {
-        $currentObj = Parse-VersionString -Tag "v0.0.0"
+    # Detect if any version bump flag was provided
+    $hasExplicitBumpInput = (
+        (-not [string]::IsNullOrWhiteSpace($NewVersion)) -or
+        (-not [string]::IsNullOrWhiteSpace($Bump)) -or
+        $IncrementMajor -or $IncrementMinor -or $IncrementPatch -or $IncrementPrerelease -or
+        (-not [string]::IsNullOrWhiteSpace($PrereleaseStage)) -or
+        $SetAlpha -or $SetBeta -or $SetReleaseCandidate -or $ReleaseVersion -or
+        $CreateVersionTag
+    )
+
+    # 1. Read Current Version from wails.json (Source of Truth)
+    $sourceVersionStr = Get-CurrentVersionFromWails -Path $WailsConfigPath
+    $currentObj = Parse-VersionString -Tag $sourceVersionStr
+    if (-not $currentObj.IsValid) {
+        Write-Host -ForegroundColor Red "Error: Failed to parse version '$sourceVersionStr' from $WailsConfigPath as valid SemVer."
+        exit 1
     }
-
     $currentFormatted = Format-BuildVersions $currentObj
+    $mostRecentGitTag = Get-MostRecentTag
 
-    # 3. Handle -ShowCurrentVersion
+    # 2. Handle -ShowCurrentVersion
     if ($ShowCurrentVersion) {
         Write-Host ""
         Write-Host -ForegroundColor Cyan "TextoVista Version Information:"
-        if ($currentTag) {
-            Write-Host -NoNewline "  Most Recent Git Tag  : "; Write-Host -ForegroundColor Green "$currentTag"
+        Write-Host -NoNewline "  Source of Truth (wails.json) : "; Write-Host -ForegroundColor Green "$($currentFormatted.SemVer)"
+        Write-Host -NoNewline "  Windows File Version         : "; Write-Host -ForegroundColor Green "$($currentFormatted.FileVersion)"
+        if ($mostRecentGitTag) {
+            Write-Host -NoNewline "  Most Recent Git Tag          : "; Write-Host -ForegroundColor Cyan "$mostRecentGitTag"
         } else {
-            Write-Host -NoNewline "  Most Recent Git Tag  : "; Write-Host -ForegroundColor Yellow "No tags found"
+            Write-Host -NoNewline "  Most Recent Git Tag          : "; Write-Host -ForegroundColor Yellow "No tags found"
         }
-        Write-Host -NoNewline "  Current SemVer       : "; Write-Host -ForegroundColor Green "$($currentFormatted.SemVer)"
-        Write-Host -NoNewline "  Current Windows File : "; Write-Host -ForegroundColor Green "$($currentFormatted.FileVersion)"
         Write-Host ""
         Write-Host -ForegroundColor Cyan "Target Files Status:"
         foreach ($target in $TargetFiles) {
@@ -467,7 +532,55 @@ try {
         return
     }
 
-    # 4. Verify working tree is clean (allowing target files and the script itself)
+    # 3. Handle Standalone -PushTag Mode (when -PushTag is passed alone without -CreateVersionTag or bump flags)
+    if ($PushTag -and (-not $CreateVersionTag) -and (-not $hasExplicitBumpInput)) {
+        Write-Host ""
+        Write-Host -ForegroundColor Cyan "=========================================================="
+        Write-Host -ForegroundColor Cyan "             TextoVista Remote Tag Push                   "
+        Write-Host -ForegroundColor Cyan "=========================================================="
+        if (-not $mostRecentGitTag) {
+            Write-Host -ForegroundColor Red "Error: No Git tags found in the repository to push."
+            exit 1
+        }
+
+        Write-Host -NoNewline "  Most Recent Git Tag : "; Write-Host -ForegroundColor Green "$mostRecentGitTag"
+        Write-Host -NoNewline "  Action              : "; Write-Host -ForegroundColor Yellow "Push existing tag '$mostRecentGitTag' to remote 'origin'"
+        Write-Host ""
+
+        if ($isDryRun) {
+            Write-Host -ForegroundColor Yellow "[DryRun / WhatIf Mode] Simulation complete."
+            Write-Host -ForegroundColor Cyan "Planned Git command:"
+            Write-Host "  git push origin $mostRecentGitTag"
+            Write-Host ""
+            return
+        }
+
+        $confirmedPush = $false
+        if ($NonInteractive) {
+            $confirmedPush = $true
+        } else {
+            Write-Host -NoNewline -ForegroundColor Cyan "Push most recent tag '$mostRecentGitTag' to remote 'origin'? [Y]es / [N]o (default: Y): "
+            $resp = Read-Host
+            if ([string]::IsNullOrWhiteSpace($resp) -or $resp -imatch '^\s*y(es)?\s*$') {
+                $confirmedPush = $true
+            }
+        }
+
+        if ($confirmedPush) {
+            Write-Host -ForegroundColor Cyan "Pushing tag '$mostRecentGitTag' to remote 'origin'..."
+            git push origin "$mostRecentGitTag"
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host -ForegroundColor Red "Error: Failed to push tag '$mostRecentGitTag' to remote."
+                exit 1
+            }
+            Write-Host -ForegroundColor Green "Tag '$mostRecentGitTag' successfully pushed to remote!"
+        } else {
+            Write-Host -ForegroundColor Yellow "Tag push cancelled by user."
+        }
+        return
+    }
+
+    # 4. Verify working tree is clean (allowing target files and Set-Version.ps1 / New-GitTag.ps1)
     $uncommitted = git status --porcelain=v1
     if (-not [string]::IsNullOrWhiteSpace($uncommitted)) {
         $dirtyLines = $uncommitted -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
@@ -475,7 +588,7 @@ try {
         foreach ($line in $dirtyLines) {
             $file = $line.Substring(3).Trim()
             $isTarget = $false
-            if ($file -match 'New-GitTag\.ps1$') {
+            if ($file -match 'Set-Version\.ps1$' -or $file -match 'New-GitTag\.ps1$') {
                 $isTarget = $true
             }
             foreach ($tf in $TargetFiles) {
@@ -495,7 +608,7 @@ try {
             Write-Host ""
             $otherChanges | ForEach-Object { Write-Host -ForegroundColor Yellow "  $_" }
             Write-Host ""
-            Write-Host "Please commit, stash, or revert these changes before tagging."
+            Write-Host "Please commit, stash, or revert these changes before setting version."
             exit 1
         }
     }
@@ -506,36 +619,32 @@ try {
         exit 1
     }
 
-    # 6. Calculate target version
+    # 6. Calculate target version using wails.json version as baseline
     $nextObj = Calculate-NextVersion `
         -CurrentObj $currentObj `
-        -ExplicitTag $TagName `
+        -ExplicitTag $NewVersion `
         -RequestedBump $bumpAction `
         -RequestedStage $stage `
         -IsRelease:($ReleaseVersion -eq $true)
 
     $nextFormatted = Format-BuildVersions $nextObj
-    $newTagName = $nextFormatted.TagName
     $newSemVer = $nextFormatted.SemVer
     $newFileVer = $nextFormatted.FileVersion
+    $proposedTagName = $nextFormatted.TagName
 
-    # 7. Prepare commit message
+    # 7. Prepare commit message (Default Conventional Commit: 'chore(release): bump version to <version>')
     if ([string]::IsNullOrWhiteSpace($Message)) {
-        $finalMessage = "Version $newSemVer ($newTagName)"
+        $finalCommitMessage = "chore(release): bump version to $newSemVer"
     } else {
-        if ($Message -notmatch [regex]::Escape($newTagName)) {
-            $finalMessage = "$Message ($newTagName)"
-        } else {
-            $finalMessage = $Message
-        }
+        $finalCommitMessage = $Message
     }
 
-    # 8. Check remote and branch
+    # 8. Check current branch and push capability
     $currentBranch = (git branch --show-current 2>$null).Trim()
     if ([string]::IsNullOrWhiteSpace($currentBranch)) {
         $currentBranch = "HEAD (detached)"
     }
-    $canPush = (-not $NoPush) -and ($currentBranch -ne "HEAD (detached)")
+    $canPushBranch = (-not $NoPush) -and ($currentBranch -ne "HEAD (detached)")
 
     # 9. Compute file diff plan
     $diffPlans = Get-FileDiffPlan -BaseDir $ProjectRoot -SemVer $newSemVer -FileVersion $newFileVer
@@ -543,25 +652,38 @@ try {
     # 10. Display Planned Operations Summary
     Write-Host ""
     Write-Host -ForegroundColor Cyan "=========================================================="
-    Write-Host -ForegroundColor Cyan "             TextoVista Tag & Release Plan                "
+    Write-Host -ForegroundColor Cyan "             TextoVista Version Bump Plan                 "
     Write-Host -ForegroundColor Cyan "=========================================================="
-    Write-Host "  Current Version      : $($currentFormatted.TagName) (SemVer: $($currentFormatted.SemVer), Win: $($currentFormatted.FileVersion))"
-    Write-Host -NoNewline "  Target Version       : "; Write-Host -ForegroundColor Green "$newTagName (SemVer: $newSemVer, Win: $newFileVer)"
-    Write-Host -NoNewline "  Git Tag Name         : "; Write-Host -ForegroundColor Yellow "$newTagName"
-    Write-Host -NoNewline "  Commit/Tag Message   : "; Write-Host -ForegroundColor Yellow "$finalMessage"
-    Write-Host -NoNewline "  Git Branch           : "; Write-Host "$currentBranch"
-    Write-Host -NoNewline "  Push to Remote       : "
-    if ($Push) {
-        Write-Host -ForegroundColor Green "Yes (-Push specified: origin/$currentBranch + tag $newTagName)"
-    } elseif ($NoPush) {
-        Write-Host -ForegroundColor Yellow "No (-NoPush specified: Local only)"
-    } elseif ($currentBranch -eq "HEAD (detached)") {
-        Write-Host -ForegroundColor Yellow "No (Detached HEAD: Local only)"
-    } elseif ($NonInteractive) {
-        Write-Host -ForegroundColor Yellow "No (Local only in non-interactive mode unless -Push is specified)"
-    } else {
-        Write-Host -ForegroundColor Cyan "Prompt after local commit & tag (default: No)"
+    Write-Host "  Source of Truth (wails.json) : $($currentFormatted.SemVer) (Win: $($currentFormatted.FileVersion))"
+    if ($mostRecentGitTag) {
+        Write-Host "  Most Recent Git Tag          : $mostRecentGitTag"
     }
+    Write-Host -NoNewline "  Target Version               : "; Write-Host -ForegroundColor Green "$newSemVer (Win: $newFileVer)"
+    Write-Host -NoNewline "  Commit Message               : "; Write-Host -ForegroundColor Yellow "$finalCommitMessage"
+    Write-Host -NoNewline "  Git Branch                   : "; Write-Host "$currentBranch"
+    Write-Host -NoNewline "  Push Commit to Remote        : "
+    if ($NoPush) {
+        Write-Host -ForegroundColor Yellow "No (-NoPush specified: Local commit only)"
+    } elseif ($currentBranch -eq "HEAD (detached)") {
+        Write-Host -ForegroundColor Yellow "No (Detached HEAD: Local commit only)"
+    } else {
+        Write-Host -ForegroundColor Green "Yes (origin/$currentBranch)"
+    }
+
+    Write-Host -NoNewline "  Create Git Tag Locally       : "
+    if ($CreateVersionTag) {
+        Write-Host -ForegroundColor Green "Yes (-CreateVersionTag specified: Proposed tag '$proposedTagName')"
+    } else {
+        Write-Host -ForegroundColor DarkGray "No (Default: tag will not be created)"
+    }
+
+    Write-Host -NoNewline "  Push Git Tag to Remote       : "
+    if ($PushTag) {
+        Write-Host -ForegroundColor Green "Yes (-PushTag specified)"
+    } else {
+        Write-Host -ForegroundColor DarkGray "No (Local tag only if created)"
+    }
+
     Write-Host ""
     Write-Host -ForegroundColor Cyan "Target File Diffs:"
     foreach ($plan in $diffPlans) {
@@ -583,43 +705,53 @@ try {
         Write-Host ""
         Write-Host -ForegroundColor Cyan "Planned Git commands that would execute:"
         $relList = ($diffPlans | Where-Object { $_.IsModified } | ForEach-Object { $_.RelPath }) -join " "
-        Write-Host "  git add $relList"
-        Write-Host "  git commit -m `"$finalMessage`""
-        Write-Host "  git tag -a `"$newTagName`" -m `"$finalMessage`""
-        if ($Push) {
-            Write-Host "  git push origin $currentBranch"
-            Write-Host "  git push origin $newTagName"
-        } elseif ($canPush -and -not $NonInteractive) {
-            Write-Host "  (Interactive prompt will ask whether to push to origin after commit & tag)"
+        if (-not [string]::IsNullOrWhiteSpace($relList)) {
+            Write-Host "  git add $relList"
+            Write-Host "  git commit -m `"$finalCommitMessage`""
+            if ($canPushBranch) {
+                Write-Host "  git push origin $currentBranch"
+            }
+        }
+        if ($CreateVersionTag) {
+            Write-Host "  git tag -a `"$proposedTagName`" -m `"$finalCommitMessage`""
+            if ($PushTag) {
+                Write-Host "  git push origin $proposedTagName"
+            }
+        } elseif ($PushTag -and $mostRecentGitTag) {
+            Write-Host "  git push origin $mostRecentGitTag (after user prompt)"
         }
         Write-Host ""
         return
     }
 
-    # 12. Interactive Confirmation Prompt (if not -NonInteractive)
+    # 12. Interactive Prompt: Confirm Version Bump
     if (-not $NonInteractive) {
-        Write-Host -NoNewline -ForegroundColor Cyan "Apply these version changes, commit, and create tag '$newTagName'? [Y]es / [N]o / [E]dit message or tag (default: Y): "
+        Write-Host -NoNewline -ForegroundColor Cyan "Apply version bump to '$newSemVer', stage files, and commit? [Y]es / [N]o / [E]dit version or message (default: Y): "
         $response = Read-Host
         if ([string]::IsNullOrWhiteSpace($response) -or $response -imatch '^\s*y(es)?\s*$') {
             # User confirmed
         } elseif ($response -imatch '^\s*e(dit)?\s*$') {
-            $customTag = Read-Host "  Enter tag name (press ENTER to keep '$newTagName')"
-            if (-not [string]::IsNullOrWhiteSpace($customTag)) {
-                $newTagName = $customTag
-                $parsedCustom = Parse-VersionString -Tag $newTagName
+            $customVer = Read-Host "  Enter version to set (press ENTER to keep '$newSemVer')"
+            if (-not [string]::IsNullOrWhiteSpace($customVer)) {
+                $newSemVer = $customVer.Trim() -replace '^[vV]', ''
+                $parsedCustom = Parse-VersionString -Tag $newSemVer
                 if ($parsedCustom.IsValid) {
                     $nextFormatted = Format-BuildVersions $parsedCustom
                     $newSemVer = $nextFormatted.SemVer
                     $newFileVer = $nextFormatted.FileVersion
+                    $proposedTagName = $nextFormatted.TagName
                     $diffPlans = Get-FileDiffPlan -BaseDir $ProjectRoot -SemVer $newSemVer -FileVersion $newFileVer
+                } else {
+                    Write-Host -ForegroundColor Red "Invalid version format '$customVer'. Aborting."
+                    return
                 }
             }
-            $customMsg = Read-Host "  Enter commit/tag message (press ENTER to keep '$finalMessage')"
+            $customMsg = Read-Host "  Enter commit message (press ENTER to keep '$finalCommitMessage')"
             if (-not [string]::IsNullOrWhiteSpace($customMsg)) {
-                $finalMessage = $customMsg
+                $finalCommitMessage = $customMsg
             }
             Write-Host ""
-            Write-Host -ForegroundColor Cyan "Updated Target: $newTagName | Message: $finalMessage"
+            Write-Host -ForegroundColor Cyan "Updated Target Version: $newSemVer | Commit Message: $finalCommitMessage"
             $confirm2 = Read-Host "Proceed with these updated values? [Y/n]"
             if ($confirm2 -inotmatch '^\s*(y(es)?|$)\s*$') {
                 Write-Host -ForegroundColor Yellow "Operation cancelled by user. No changes made."
@@ -635,7 +767,7 @@ try {
     Write-Host -ForegroundColor Cyan "Applying file updates..."
     Apply-FileUpdates -DiffPlans $diffPlans
 
-    # 14. Git Stage & Commit
+    # 14. Git Stage & Commit Version Bump
     Write-Host -ForegroundColor Cyan "Staging files in Git..."
     $modifiedFiles = $diffPlans | Where-Object { $_.IsModified } | ForEach-Object { $_.RelPath }
     if ($modifiedFiles.Count -gt 0) {
@@ -645,74 +777,112 @@ try {
             exit 1
         }
 
-        Write-Host -ForegroundColor Cyan "Committing changes: $finalMessage"
-        git commit -m "$finalMessage" 2>&1 | Out-Null
+        Write-Host -ForegroundColor Cyan "Committing changes: $finalCommitMessage"
+        git commit -m "$finalCommitMessage" 2>&1 | Out-Null
         if ($LASTEXITCODE -ne 0) {
             Write-Host -ForegroundColor Red "Error: Failed to commit changes to Git."
             exit 1
         }
         Write-Host -ForegroundColor Green "  Commit created successfully."
-    } else {
-        Write-Host -ForegroundColor Yellow "  No file changes to commit."
-    }
 
-    # 15. Create Annotated Tag
-    Write-Host -ForegroundColor Cyan "Creating Git tag: $newTagName"
-    git tag -a "$newTagName" -m "$finalMessage" 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host -ForegroundColor Red "Error: Failed to create Git tag '$newTagName'."
-        exit 1
-    }
-    Write-Host -ForegroundColor Green "  Tag '$newTagName' created locally."
-
-    # 16. Push to Remote (Prompt or Switch)
-    $shouldPush = $false
-
-    if ($currentBranch -eq "HEAD (detached)") {
-        Write-Host -ForegroundColor Yellow "Skipped remote push (detached HEAD). Commit and tag exist locally."
-    } elseif ($NoPush) {
-        Write-Host -ForegroundColor Yellow "Skipped remote push (-NoPush specified). Commit and tag exist locally."
-    } elseif ($Push) {
-        $shouldPush = $true
-    } elseif ($NonInteractive) {
-        Write-Host -ForegroundColor Yellow "Skipped remote push in non-interactive mode. (Use -Push to push automatically)."
-    } else {
-        Write-Host ""
-        Write-Host -NoNewline -ForegroundColor Cyan "Push branch '$currentBranch' and tag '$newTagName' to remote 'origin'? [y/N]: "
-        $pushResponse = Read-Host
-        if ($pushResponse -imatch '^\s*y(es)?\s*$') {
-            $shouldPush = $true
-        }
-    }
-
-    if ($shouldPush) {
-        Write-Host -ForegroundColor Cyan "Pushing branch '$currentBranch' to remote..."
-        git push origin "$currentBranch" 2>&1 | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host -ForegroundColor Yellow "Warning: Failed to push branch '$currentBranch' to remote. You may need to push manually."
+        # Push Version Bump Commit to Remote
+        if ($canPushBranch) {
+            Write-Host -ForegroundColor Cyan "Pushing version bump commit to remote 'origin/$currentBranch'..."
+            git push origin "$currentBranch" 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host -ForegroundColor Yellow "Warning: Failed to push branch '$currentBranch' to remote. You may need to push manually."
+            } else {
+                Write-Host -ForegroundColor Green "  Version bump commit pushed successfully to remote."
+            }
         } else {
-            Write-Host -ForegroundColor Green "  Branch pushed successfully."
-        }
-
-        Write-Host -ForegroundColor Cyan "Pushing tag '$newTagName' to remote..."
-        git push origin "$newTagName" 2>&1 | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host -ForegroundColor Yellow "Warning: Failed to push tag '$newTagName' to remote. You may need to push manually."
-        } else {
-            Write-Host -ForegroundColor Green "  Tag pushed successfully."
+            Write-Host -ForegroundColor Yellow "  Skipped remote commit push (NoPush specified or detached HEAD)."
         }
     } else {
-        if (-not $NoPush -and ($currentBranch -ne "HEAD (detached)") -and -not $NonInteractive) {
-            Write-Host -ForegroundColor Yellow "Skipped remote push. Commit and tag exist locally."
+        Write-Host -ForegroundColor Yellow "  No file changes to commit (files already at target version)."
+    }
+
+    # 15. Tag Handling Logic
+    $tagToApply = $proposedTagName
+
+    if ($CreateVersionTag) {
+        # Prompt user to verify or change the proposed tag
+        $confirmedTag = $false
+        if ($NonInteractive) {
+            $confirmedTag = $true
+        } else {
+            Write-Host ""
+            Write-Host -NoNewline -ForegroundColor Cyan "Create local Git tag using proposed tag '$proposedTagName'? [Y]es / [N]o / [E]dit tag name (default: Y): "
+            $tagResp = Read-Host
+            if ([string]::IsNullOrWhiteSpace($tagResp) -or $tagResp -imatch '^\s*y(es)?\s*$') {
+                $confirmedTag = $true
+            } elseif ($tagResp -imatch '^\s*e(dit)?\s*$') {
+                $customTagInput = Read-Host "  Enter tag name (press ENTER to keep '$proposedTagName')"
+                if (-not [string]::IsNullOrWhiteSpace($customTagInput)) {
+                    $tagToApply = $customTagInput.Trim()
+                }
+                $confirmedTag = $true
+            } else {
+                Write-Host -ForegroundColor Yellow "Skipped Git tag creation."
+            }
         }
+
+        if ($confirmedTag) {
+            Write-Host -ForegroundColor Cyan "Creating local Git tag: $tagToApply"
+            git tag -a "$tagToApply" -m "$finalCommitMessage" 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host -ForegroundColor Red "Error: Failed to create Git tag '$tagToApply'."
+                exit 1
+            }
+            Write-Host -ForegroundColor Green "  Tag '$tagToApply' created locally."
+
+            # Check if tag should be pushed to remote
+            if ($PushTag) {
+                # Pushed immediately since tag was confirmed
+                Write-Host -ForegroundColor Cyan "Pushing tag '$tagToApply' to remote 'origin'..."
+                git push origin "$tagToApply" 2>&1 | Out-Null
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Host -ForegroundColor Yellow "Warning: Failed to push tag '$tagToApply' to remote. You may need to push manually."
+                } else {
+                    Write-Host -ForegroundColor Green "  Tag '$tagToApply' pushed successfully to remote."
+                }
+            } else {
+                Write-Host -ForegroundColor Yellow "  Tag '$tagToApply' exists locally only. (To push to remote, run: git push origin $tagToApply or rerun with -PushTag)."
+            }
+        }
+    } elseif ($PushTag) {
+        # -PushTag specified WITHOUT -CreateVersionTag: Check current most recent tag and prompt
+        $latestTag = Get-MostRecentTag
         Write-Host ""
-        Write-Host "To push to remote manually later, run:"
-        Write-Host "  git push origin $currentBranch"
-        Write-Host "  git push origin $newTagName"
+        if (-not $latestTag) {
+            Write-Host -ForegroundColor Yellow "Warning: -PushTag was requested without -CreateVersionTag, but no Git tags were found in repository."
+        } else {
+            $confirmLatestPush = $false
+            if ($NonInteractive) {
+                $confirmLatestPush = $true
+            } else {
+                Write-Host -NoNewline -ForegroundColor Cyan "Push most recent Git tag '$latestTag' to remote 'origin'? [Y]es / [N]o (default: Y): "
+                $pResp = Read-Host
+                if ([string]::IsNullOrWhiteSpace($pResp) -or $pResp -imatch '^\s*y(es)?\s*$') {
+                    $confirmLatestPush = $true
+                }
+            }
+
+            if ($confirmLatestPush) {
+                Write-Host -ForegroundColor Cyan "Pushing tag '$latestTag' to remote 'origin'..."
+                git push origin "$latestTag" 2>&1 | Out-Null
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Host -ForegroundColor Yellow "Warning: Failed to push tag '$latestTag' to remote. You may need to push manually."
+                } else {
+                    Write-Host -ForegroundColor Green "  Tag '$latestTag' pushed successfully to remote."
+                }
+            } else {
+                Write-Host -ForegroundColor Yellow "Skipped remote tag push."
+            }
+        }
     }
 
     Write-Host ""
-    Write-Host -ForegroundColor Green "Successfully completed release tag $newTagName!"
+    Write-Host -ForegroundColor Green "Set-Version completed successfully!"
     Write-Host ""
 }
 finally {
