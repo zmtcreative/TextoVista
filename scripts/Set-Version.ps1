@@ -237,6 +237,48 @@ function Test-GitTagExists {
     return ($found -and ($found -contains $Tag.Trim() -or $found -eq $Tag.Trim()))
 }
 
+function Resolve-TagCollision {
+    param (
+        [string]$TagName,
+        [switch]$NonInteractive
+    )
+
+    $currentTag = $TagName
+    while (Test-GitTagExists -Tag $currentTag) {
+        Write-Host ""
+        Write-Host -ForegroundColor Yellow "Tag Collision: Git tag '$currentTag' already exists in the repository."
+        if ($NonInteractive) {
+            Write-Host -ForegroundColor Red "Cannot resolve tag collision in non-interactive mode. Aborting."
+            return $null
+        }
+
+        Write-Host "Please select an option to resolve the collision:"
+        Write-Host "  (E) Edit the tag string manually"
+        Write-Host "  (T) Prepend 'test-' to the existing tag name ('test-$currentTag')"
+        Write-Host "  (Q) Quit the script and make no change (default)"
+        Write-Host -NoNewline -ForegroundColor Cyan "Select option [E/T/Q] (default: Q): "
+        $choice = Read-Host
+
+        if ([string]::IsNullOrWhiteSpace($choice) -or $choice -imatch '^\s*q(uit)?\s*$') {
+            return $null
+        } elseif ($choice -imatch '^\s*t(est)?\s*$') {
+            $currentTag = "test-$currentTag"
+        } elseif ($choice -imatch '^\s*e(dit)?\s*$') {
+            Write-Host -NoNewline -ForegroundColor Cyan "  Enter new tag name (press ENTER to cancel): "
+            $customInput = Read-Host
+            if ([string]::IsNullOrWhiteSpace($customInput)) {
+                return $null
+            }
+            $currentTag = $customInput.Trim()
+        } else {
+            Write-Host -ForegroundColor Yellow "Unrecognized option '$choice'. Defaulting to Quit."
+            return $null
+        }
+    }
+
+    return $currentTag
+}
+
 function Parse-VersionString {
     param ([string]$Tag)
     $clean = $Tag.Trim() -replace '^[vV]', ''
@@ -638,19 +680,15 @@ try {
     $proposedTagName = $nextFormatted.TagName
 
     # 7. Check if proposed tag already exists when -CreateVersionTag is specified
-    $tagAlreadyExists = Test-GitTagExists -Tag $proposedTagName
-    if ($CreateVersionTag -and $tagAlreadyExists) {
-        if ($isDryRun) {
+    if ($CreateVersionTag -and (Test-GitTagExists -Tag $proposedTagName)) {
+        $resolvedTag = Resolve-TagCollision -TagName $proposedTagName -NonInteractive:$NonInteractive
+        if (-not $resolvedTag) {
             Write-Host ""
-            Write-Host -ForegroundColor Yellow "[DryRun] Warning: Git tag '$proposedTagName' already exists in the repository. Live execution will be blocked."
-        } else {
-            Write-Host ""
-            Write-Host -ForegroundColor Red "Error: Git tag '$proposedTagName' for version '$newSemVer' already exists in the repository."
-            Write-Host -ForegroundColor Yellow "Cannot create duplicate tag. Aborting before making any file changes or commits."
-            Write-Host "Please bump the version (e.g., -IncrementPatch, -IncrementMinor, -IncrementMajor) or specify an alternate version."
-            Write-Host ""
-            exit 1
+            Write-Host -ForegroundColor Yellow "Tag collision unresolved. Operation cancelled by user. No changes made."
+            return
         }
+        $proposedTagName = $resolvedTag
+        Write-Host -ForegroundColor Green "Resolved tag name to apply: '$proposedTagName'"
     }
 
     # 8. Prepare commit message (Default Conventional Commit: 'chore(release): bump version to <version>')
@@ -693,11 +731,7 @@ try {
 
     Write-Host -NoNewline "  Create Git Tag Locally       : "
     if ($CreateVersionTag) {
-        if ($tagAlreadyExists) {
-            Write-Host -ForegroundColor Red "BLOCKED (Git tag '$proposedTagName' already exists in repository!)"
-        } else {
-            Write-Host -ForegroundColor Green "Yes (-CreateVersionTag specified: Proposed tag '$proposedTagName')"
-        }
+        Write-Host -ForegroundColor Green "Yes (-CreateVersionTag specified: Proposed tag '$proposedTagName')"
     } else {
         Write-Host -ForegroundColor DarkGray "No (Default: tag will not be created)"
     }
@@ -853,9 +887,17 @@ try {
 
         if ($confirmedTag) {
             if (Test-GitTagExists -Tag $tagToApply) {
-                Write-Host -ForegroundColor Red "Error: Git tag '$tagToApply' already exists in the repository. Cannot create duplicate tag."
-                exit 1
+                $resolvedTag15 = Resolve-TagCollision -TagName $tagToApply -NonInteractive:$NonInteractive
+                if (-not $resolvedTag15) {
+                    Write-Host -ForegroundColor Yellow "Skipped Git tag creation due to unresolved tag collision."
+                    $confirmedTag = $false
+                } else {
+                    $tagToApply = $resolvedTag15
+                }
             }
+        }
+
+        if ($confirmedTag) {
             Write-Host -ForegroundColor Cyan "Creating local Git tag: $tagToApply"
             git tag -a "$tagToApply" -m "$finalCommitMessage" 2>&1 | Out-Null
             if ($LASTEXITCODE -ne 0) {
