@@ -159,7 +159,7 @@ param (
     [switch]$NonInteractive
 )
 
-# --- Path Resolution ---
+# --- Path Resolution & Project Setup ---
 $ScriptFullName = $MyInvocation.MyCommand.Path
 $ScriptDir = Split-Path -Parent $ScriptFullName
 $ProjectRoot = if ($ScriptDir -match '[\\/]scripts[\\/]?$') {
@@ -215,28 +215,103 @@ $TargetFiles = @(
     }
 )
 
-# --- Version Parsing, Formatting, and Source of Truth Functions ---
+# ==============================================================================
+# Helper Functions: Parameter & Flag Resolvers
+# ==============================================================================
 
-function Get-CurrentVersionFromWails {
-    param ([string]$Path)
-    if (-not (Test-Path -Path $Path -PathType Leaf)) {
-        throw "Source of truth 'wails.json' not found at: $Path"
-    }
-    $raw = Get-Content -Raw -Path $Path -Encoding utf8
-    try {
-        $json = $raw | ConvertFrom-Json
-        if ($json.info -and -not [string]::IsNullOrWhiteSpace($json.info.productVersion)) {
-            return $json.info.productVersion.Trim()
-        }
-    } catch {
-        # Fallback to regex if ConvertFrom-Json fails
-    }
-
-    if ($raw -match '"productVersion"\s*:\s*"([^"]+)"') {
-        return $Matches[1].Trim()
-    }
-    throw "Could not determine 'productVersion' from source of truth: $Path"
+function Resolve-PrereleaseStage {
+    param (
+        [string]$Stage,
+        [switch]$Alpha,
+        [switch]$Beta,
+        [switch]$RC
+    )
+    if ($Alpha) { return "alpha" }
+    if ($Beta)  { return "beta" }
+    if ($RC)    { return "rc" }
+    return $Stage
 }
+
+function Resolve-BumpAction {
+    param (
+        [string]$Bump,
+        [switch]$Major,
+        [switch]$Minor,
+        [switch]$Patch,
+        [switch]$Prerelease
+    )
+    if ($Major)      { return "Major" }
+    if ($Minor)      { return "Minor" }
+    if ($Patch)      { return "Patch" }
+    if ($Prerelease) { return "Prerelease" }
+    return $Bump
+}
+
+function Assert-ParameterRules {
+    param (
+        [switch]$CurrentVersion,
+        [switch]$CreateVersionTag,
+        [string]$NewVersion,
+        [string]$Bump,
+        [switch]$IncrementMajor,
+        [switch]$IncrementMinor,
+        [switch]$IncrementPatch,
+        [switch]$IncrementPrerelease,
+        [string]$PrereleaseStage,
+        [switch]$SetAlpha,
+        [switch]$SetBeta,
+        [switch]$SetReleaseCandidate,
+        [switch]$ReleaseVersion
+    )
+
+    if ($CurrentVersion) {
+        if (-not $CreateVersionTag) {
+            Write-Host -ForegroundColor Red "Error: The -CurrentVersion switch can only be used in combination with -CreateVersionTag."
+            exit 1
+        }
+        $bumpFlagsSpecified = (
+            (-not [string]::IsNullOrWhiteSpace($NewVersion)) -or
+            (-not [string]::IsNullOrWhiteSpace($Bump)) -or
+            $IncrementMajor -or $IncrementMinor -or $IncrementPatch -or $IncrementPrerelease -or
+            (-not [string]::IsNullOrWhiteSpace($PrereleaseStage)) -or
+            $SetAlpha -or $SetBeta -or $SetReleaseCandidate -or $ReleaseVersion
+        )
+        if ($bumpFlagsSpecified) {
+            Write-Host -ForegroundColor Red "Error: The -CurrentVersion switch prevents version bumping and cannot be combined with version increment parameters."
+            exit 1
+        }
+    }
+}
+
+function Test-ExplicitBumpInputSpecified {
+    param (
+        [string]$NewVersion,
+        [string]$Bump,
+        [switch]$IncrementMajor,
+        [switch]$IncrementMinor,
+        [switch]$IncrementPatch,
+        [switch]$IncrementPrerelease,
+        [string]$PrereleaseStage,
+        [switch]$SetAlpha,
+        [switch]$SetBeta,
+        [switch]$SetReleaseCandidate,
+        [switch]$ReleaseVersion,
+        [switch]$CreateVersionTag
+    )
+
+    return (
+        (-not [string]::IsNullOrWhiteSpace($NewVersion)) -or
+        (-not [string]::IsNullOrWhiteSpace($Bump)) -or
+        $IncrementMajor -or $IncrementMinor -or $IncrementPatch -or $IncrementPrerelease -or
+        (-not [string]::IsNullOrWhiteSpace($PrereleaseStage)) -or
+        $SetAlpha -or $SetBeta -or $SetReleaseCandidate -or $ReleaseVersion -or
+        $CreateVersionTag
+    )
+}
+
+# ==============================================================================
+# Helper Functions: Git Queries, Cleanliness & Tag Resolution
+# ==============================================================================
 
 function Get-MostRecentTag {
     $tag = git describe --tags --abbrev=0 2>$null
@@ -293,6 +368,72 @@ function Resolve-TagCollision {
     }
 
     return $currentTag
+}
+
+function Get-GitBranchInfo {
+    param ([switch]$NoPush)
+
+    $currentBranch = (git branch --show-current 2>$null).Trim()
+    if ([string]::IsNullOrWhiteSpace($currentBranch)) {
+        $currentBranch = "HEAD (detached)"
+    }
+    $canPush = (-not $NoPush) -and ($currentBranch -ne "HEAD (detached)")
+
+    return [PSCustomObject]@{
+        BranchName    = $currentBranch
+        CanPushBranch = $canPush
+    }
+}
+
+function Assert-GitWorkingTreeClean {
+    param ([switch]$IsDryRun)
+
+    $uncommitted = git status --porcelain=v1
+    if (-not [string]::IsNullOrWhiteSpace($uncommitted)) {
+        if ($IsDryRun) {
+            Write-Host ""
+            Write-Host -ForegroundColor Yellow "Warning: Working directory has uncommitted changes. A clean repository is required for live execution:"
+            $uncommitted -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object {
+                Write-Host -ForegroundColor Yellow "  $_"
+            }
+            Write-Host ""
+        } else {
+            Write-Host ""
+            Write-Host -ForegroundColor Red "Error: Working directory has uncommitted changes. Repository must be clean before setting version or managing tags:"
+            Write-Host ""
+            $uncommitted -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object {
+                Write-Host -ForegroundColor Yellow "  $_"
+            }
+            Write-Host ""
+            Write-Host "Please commit, stash, or revert these changes before setting version or pushing tags."
+            exit 1
+        }
+    }
+}
+
+# ==============================================================================
+# Helper Functions: Version Parsing, Formatting & Calculations
+# ==============================================================================
+
+function Get-CurrentVersionFromWails {
+    param ([string]$Path)
+    if (-not (Test-Path -Path $Path -PathType Leaf)) {
+        throw "Source of truth 'wails.json' not found at: $Path"
+    }
+    $raw = Get-Content -Raw -Path $Path -Encoding utf8
+    try {
+        $json = $raw | ConvertFrom-Json
+        if ($json.info -and -not [string]::IsNullOrWhiteSpace($json.info.productVersion)) {
+            return $json.info.productVersion.Trim()
+        }
+    } catch {
+        # Fallback to regex if ConvertFrom-Json fails
+    }
+
+    if ($raw -match '"productVersion"\s*:\s*"([^"]+)"') {
+        return $Matches[1].Trim()
+    }
+    throw "Could not determine 'productVersion' from source of truth: $Path"
 }
 
 function Parse-VersionString {
@@ -460,7 +601,9 @@ function Calculate-NextVersion {
     }
 }
 
-# --- File Update Engine ---
+# ==============================================================================
+# Helper Functions: File Update Engine
+# ==============================================================================
 
 function Test-TargetFilesExist {
     param ([string]$BaseDir)
@@ -534,51 +677,491 @@ function Apply-FileUpdates {
     }
 }
 
-# --- Main Controller Logic ---
+# ==============================================================================
+# Helper Functions: Reporting & Display
+# ==============================================================================
+
+function Show-VersionInformation {
+    param (
+        $CurrentFormatted,
+        [string]$MostRecentGitTag,
+        [string]$ProjectRoot,
+        $TargetFiles
+    )
+
+    Write-Host ""
+    Write-Host -ForegroundColor Cyan "TextoVista Version Information:"
+    Write-Host -NoNewline "  Source of Truth (wails.json) : "; Write-Host -ForegroundColor Green "$($CurrentFormatted.SemVer)"
+    Write-Host -NoNewline "  Windows File Version         : "; Write-Host -ForegroundColor Green "$($CurrentFormatted.FileVersion)"
+    if ($MostRecentGitTag) {
+        Write-Host -NoNewline "  Most Recent Git Tag          : "; Write-Host -ForegroundColor Cyan "$MostRecentGitTag"
+    } else {
+        Write-Host -NoNewline "  Most Recent Git Tag          : "; Write-Host -ForegroundColor Yellow "No tags found"
+    }
+
+    $uncommittedCheck = git status --porcelain=v1
+    Write-Host -NoNewline "  Working Tree Status          : "
+    if ([string]::IsNullOrWhiteSpace($uncommittedCheck)) {
+        Write-Host -ForegroundColor Green "Clean"
+    } else {
+        $dirtyCount = ($uncommittedCheck -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count
+        Write-Host -ForegroundColor Yellow "Dirty ($dirtyCount uncommitted change(s))"
+    }
+
+    Write-Host ""
+    Write-Host -ForegroundColor Cyan "Target Files Status:"
+    foreach ($target in $TargetFiles) {
+        $p = Join-Path $ProjectRoot $target.RelPath
+        $exists = Test-Path -Path $p
+        $status = if ($exists) { "Found" } else { "Missing" }
+        $color = if ($exists) { "Green" } else { "Red" }
+        Write-Host -NoNewline "  $($target.RelPath.PadRight(40)) ["
+        Write-Host -NoNewline -ForegroundColor $color $status
+        Write-Host "]"
+    }
+    Write-Host ""
+}
+
+function Show-PlannedOperations {
+    param (
+        $CurrentFormatted,
+        [string]$MostRecentGitTag,
+        [string]$NewSemVer,
+        [string]$NewFileVer,
+        [string]$FinalCommitMessage,
+        [string]$CurrentBranch,
+        [bool]$NoPush,
+        [bool]$CreateVersionTag,
+        [string]$ProposedTagName,
+        [string]$FinalTagMessage,
+        [bool]$PushTag,
+        [bool]$CurrentVersion,
+        $DiffPlans
+    )
+
+    Write-Host ""
+    Write-Host -ForegroundColor Cyan "=========================================================="
+    if ($CurrentVersion) {
+        Write-Host -ForegroundColor Cyan "             TextoVista Version Tag Plan                  "
+    } else {
+        Write-Host -ForegroundColor Cyan "             TextoVista Version Bump Plan                 "
+    }
+    Write-Host -ForegroundColor Cyan "=========================================================="
+    Write-Host "  Source of Truth (wails.json) : $($CurrentFormatted.SemVer) (Win: $($CurrentFormatted.FileVersion))"
+    if ($MostRecentGitTag) {
+        Write-Host "  Most Recent Git Tag          : $MostRecentGitTag"
+    }
+
+    if ($CurrentVersion) {
+        Write-Host -NoNewline "  Target Version               : "; Write-Host -ForegroundColor Green "$NewSemVer (Existing version unchanged)"
+        Write-Host "  Version Bump Operations      : Skipped (-CurrentVersion specified; project files will not be modified)"
+    } else {
+        Write-Host -NoNewline "  Target Version               : "; Write-Host -ForegroundColor Green "$NewSemVer (Win: $NewFileVer)"
+        Write-Host -NoNewline "  Commit Message               : "; Write-Host -ForegroundColor Yellow "$FinalCommitMessage"
+        Write-Host -NoNewline "  Git Branch                   : "; Write-Host "$CurrentBranch"
+        Write-Host -NoNewline "  Push Commit to Remote        : "
+        if ($NoPush) {
+            Write-Host -ForegroundColor Yellow "No (-NoPush specified: Local commit only)"
+        } elseif ($CurrentBranch -eq "HEAD (detached)") {
+            Write-Host -ForegroundColor Yellow "No (Detached HEAD: Local commit only)"
+        } else {
+            Write-Host -ForegroundColor Green "Yes (origin/$CurrentBranch)"
+        }
+    }
+
+    Write-Host -NoNewline "  Create Git Tag Locally       : "
+    if ($CreateVersionTag) {
+        Write-Host -ForegroundColor Green "Yes (-CreateVersionTag specified: Proposed tag '$ProposedTagName')"
+    } else {
+        Write-Host -ForegroundColor DarkGray "No (Default: tag will not be created)"
+    }
+    if ($CreateVersionTag) {
+        Write-Host -NoNewline "  Tag Message                  : "; Write-Host -ForegroundColor Yellow "$FinalTagMessage"
+    }
+
+    Write-Host -NoNewline "  Push Git Tag to Remote       : "
+    if ($PushTag) {
+        Write-Host -ForegroundColor Green "Yes (-PushTag specified)"
+    } else {
+        Write-Host -ForegroundColor DarkGray "No (Local tag only if created)"
+    }
+
+    if (-not $CurrentVersion) {
+        Write-Host ""
+        Write-Host -ForegroundColor Cyan "Target File Diffs:"
+        foreach ($plan in $DiffPlans) {
+            if ($plan.IsModified) {
+                Write-Host "  File: $($plan.RelPath)" -ForegroundColor Magenta
+                foreach ($d in $plan.Diffs) {
+                    Write-Host "    - $($d.Old.Trim())" -ForegroundColor Red
+                    Write-Host "    + $($d.New.Trim())" -ForegroundColor Green
+                }
+            } else {
+                Write-Host "  File: $($plan.RelPath) (already at target version)" -ForegroundColor DarkGray
+            }
+        }
+    }
+    Write-Host ""
+}
+
+function Show-DryRunPlan {
+    param (
+        [bool]$CurrentVersion,
+        $DiffPlans,
+        [string]$FinalCommitMessage,
+        [bool]$CanPushBranch,
+        [string]$CurrentBranch,
+        [bool]$CreateVersionTag,
+        [string]$ProposedTagName,
+        [string]$FinalTagMessage,
+        [bool]$PushTag,
+        [string]$MostRecentGitTag
+    )
+
+    Write-Host -ForegroundColor Yellow "[DryRun / WhatIf Mode] Simulation complete. No files or Git references modified."
+    Write-Host ""
+    Write-Host -ForegroundColor Cyan "Planned Git commands that would execute:"
+    if (-not $CurrentVersion) {
+        $relList = ($DiffPlans | Where-Object { $_.IsModified } | ForEach-Object { $_.RelPath }) -join " "
+        if (-not [string]::IsNullOrWhiteSpace($relList)) {
+            Write-Host "  git add $relList"
+            Write-Host "  git commit -m `"$FinalCommitMessage`""
+            if ($CanPushBranch) {
+                Write-Host "  git push origin $CurrentBranch"
+            }
+        }
+    }
+    if ($CreateVersionTag) {
+        Write-Host "  git tag -a `"$ProposedTagName`" -m `"$FinalTagMessage`""
+        if ($PushTag) {
+            Write-Host "  git push origin $ProposedTagName"
+        }
+    } elseif ($PushTag -and $MostRecentGitTag) {
+        Write-Host "  git push origin $MostRecentGitTag (after user prompt)"
+    }
+    Write-Host ""
+}
+
+# ==============================================================================
+# Helper Functions: Interactive Prompts & Git Execution
+# ==============================================================================
+
+function Invoke-StandaloneTagPush {
+    param (
+        [string]$MostRecentTag,
+        [switch]$IsDryRun,
+        [switch]$NonInteractive
+    )
+
+    Write-Host ""
+    Write-Host -ForegroundColor Cyan "=========================================================="
+    Write-Host -ForegroundColor Cyan "             TextoVista Remote Tag Push                   "
+    Write-Host -ForegroundColor Cyan "=========================================================="
+    if (-not $MostRecentTag) {
+        Write-Host -ForegroundColor Red "Error: No Git tags found in the repository to push."
+        exit 1
+    }
+
+    Write-Host -NoNewline "  Most Recent Git Tag : "; Write-Host -ForegroundColor Green "$MostRecentTag"
+    Write-Host -NoNewline "  Action              : "; Write-Host -ForegroundColor Yellow "Push existing tag '$MostRecentTag' to remote 'origin'"
+    Write-Host ""
+
+    if ($IsDryRun) {
+        Write-Host -ForegroundColor Yellow "[DryRun / WhatIf Mode] Simulation complete."
+        Write-Host -ForegroundColor Cyan "Planned Git command:"
+        Write-Host "  git push origin $MostRecentTag"
+        Write-Host ""
+        return
+    }
+
+    $confirmedPush = $false
+    if ($NonInteractive) {
+        $confirmedPush = $true
+    } else {
+        Write-Host -NoNewline -ForegroundColor Cyan "Push most recent tag '$MostRecentTag' to remote 'origin'? [Y]es / [N]o (default: Y): "
+        $resp = Read-Host
+        if ([string]::IsNullOrWhiteSpace($resp) -or $resp -imatch '^\s*y(es)?\s*$') {
+            $confirmedPush = $true
+        }
+    }
+
+    if ($confirmedPush) {
+        Write-Host -ForegroundColor Cyan "Pushing tag '$MostRecentTag' to remote 'origin'..."
+        git push origin "$MostRecentTag"
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host -ForegroundColor Red "Error: Failed to push tag '$MostRecentTag' to remote."
+            exit 1
+        }
+        Write-Host -ForegroundColor Green "Tag '$MostRecentTag' successfully pushed to remote!"
+    } else {
+        Write-Host -ForegroundColor Yellow "Tag push cancelled by user."
+    }
+}
+
+function Confirm-VersionBumpPrompt {
+    param (
+        [string]$NewSemVer,
+        [string]$NewFileVer,
+        [string]$ProposedTagName,
+        [string]$FinalCommitMessage,
+        $DiffPlans,
+        [string]$ProjectRoot,
+        [switch]$NonInteractive
+    )
+
+    if ($NonInteractive) {
+        return [PSCustomObject]@{
+            Confirmed          = $true
+            NewSemVer          = $NewSemVer
+            NewFileVer         = $NewFileVer
+            ProposedTagName    = $ProposedTagName
+            FinalCommitMessage = $FinalCommitMessage
+            DiffPlans          = $DiffPlans
+        }
+    }
+
+    Write-Host -NoNewline -ForegroundColor Cyan "Apply version bump to '$NewSemVer', stage files, and commit? [Y]es / [N]o / [E]dit version or message (default: Y): "
+    $response = Read-Host
+    if ([string]::IsNullOrWhiteSpace($response) -or $response -imatch '^\s*y(es)?\s*$') {
+        return [PSCustomObject]@{
+            Confirmed          = $true
+            NewSemVer          = $NewSemVer
+            NewFileVer         = $NewFileVer
+            ProposedTagName    = $ProposedTagName
+            FinalCommitMessage = $FinalCommitMessage
+            DiffPlans          = $DiffPlans
+        }
+    } elseif ($response -imatch '^\s*e(dit)?\s*$') {
+        $customVer = Read-Host "  Enter version to set (press ENTER to keep '$NewSemVer')"
+        if (-not [string]::IsNullOrWhiteSpace($customVer)) {
+            $updatedSemVer = $customVer.Trim() -replace '^[vV]', ''
+            $parsedCustom = Parse-VersionString -Tag $updatedSemVer
+            if ($parsedCustom.IsValid) {
+                $nextFormatted = Format-BuildVersions $parsedCustom
+                $NewSemVer = $nextFormatted.SemVer
+                $NewFileVer = $nextFormatted.FileVersion
+                $ProposedTagName = $nextFormatted.TagName
+                $DiffPlans = Get-FileDiffPlan -BaseDir $ProjectRoot -SemVer $NewSemVer -FileVersion $NewFileVer
+            } else {
+                Write-Host -ForegroundColor Red "Invalid version format '$customVer'. Aborting."
+                return $null
+            }
+        }
+        $customMsg = Read-Host "  Enter commit message (press ENTER to keep '$FinalCommitMessage')"
+        if (-not [string]::IsNullOrWhiteSpace($customMsg)) {
+            $FinalCommitMessage = $customMsg
+        }
+        Write-Host ""
+        Write-Host -ForegroundColor Cyan "Updated Target Version: $NewSemVer | Commit Message: $FinalCommitMessage"
+        $confirm2 = Read-Host "Proceed with these updated values? [Y/n]"
+        if ($confirm2 -inotmatch '^\s*(y(es)?|$)\s*$') {
+            Write-Host -ForegroundColor Yellow "Operation cancelled by user. No changes made."
+            return $null
+        }
+        return [PSCustomObject]@{
+            Confirmed          = $true
+            NewSemVer          = $NewSemVer
+            NewFileVer         = $NewFileVer
+            ProposedTagName    = $ProposedTagName
+            FinalCommitMessage = $FinalCommitMessage
+            DiffPlans          = $DiffPlans
+        }
+    } else {
+        Write-Host -ForegroundColor Yellow "Operation cancelled by user. No changes made."
+        return $null
+    }
+}
+
+function Invoke-VersionBumpCommit {
+    param (
+        $DiffPlans,
+        [string]$CommitMessage,
+        [string]$CurrentBranch,
+        [bool]$CanPushBranch
+    )
+
+    Write-Host -ForegroundColor Cyan "Staging files in Git..."
+    $modifiedFiles = $DiffPlans | Where-Object { $_.IsModified } | ForEach-Object { $_.RelPath }
+    if ($modifiedFiles.Count -gt 0) {
+        git add $modifiedFiles 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host -ForegroundColor Red "Error: Failed to stage files in Git."
+            exit 1
+        }
+
+        Write-Host -ForegroundColor Cyan "Committing changes: $CommitMessage"
+        git commit -m "$CommitMessage" 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host -ForegroundColor Red "Error: Failed to commit changes to Git."
+            exit 1
+        }
+        Write-Host -ForegroundColor Green "  Commit created successfully."
+
+        # Push Version Bump Commit to Remote
+        if ($CanPushBranch) {
+            Write-Host -ForegroundColor Cyan "Pushing version bump commit to remote 'origin/$CurrentBranch'..."
+            git push origin "$CurrentBranch" 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host -ForegroundColor Yellow "Warning: Failed to push branch '$CurrentBranch' to remote. You may need to push manually."
+            } else {
+                Write-Host -ForegroundColor Green "  Version bump commit pushed successfully to remote."
+            }
+        } else {
+            Write-Host -ForegroundColor Yellow "  Skipped remote commit push (NoPush specified or detached HEAD)."
+        }
+    } else {
+        Write-Host -ForegroundColor Yellow "  No file changes to commit (files already at target version)."
+    }
+}
+
+function Invoke-TagOperations {
+    param (
+        [bool]$CreateVersionTag,
+        [string]$ProposedTagName,
+        [string]$TagMessage,
+        [bool]$PushTag,
+        [switch]$NonInteractive
+    )
+
+    $tagToApply = $ProposedTagName
+
+    if ($CreateVersionTag) {
+        $tagMessageToUse = if (-not [string]::IsNullOrWhiteSpace($TagMessage)) {
+            $TagMessage
+        } else {
+            "Version: $tagToApply"
+        }
+
+        # Prompt user to verify or change the proposed tag
+        $confirmedTag = $false
+        if ($NonInteractive) {
+            $confirmedTag = $true
+        } else {
+            Write-Host ""
+            Write-Host -NoNewline -ForegroundColor Cyan "Create local Git tag '$ProposedTagName' (message: '$tagMessageToUse')? [Y]es / [N]o / [E]dit tag name (default: Y): "
+            $tagResp = Read-Host
+            if ([string]::IsNullOrWhiteSpace($tagResp) -or $tagResp -imatch '^\s*y(es)?\s*$') {
+                $confirmedTag = $true
+            } elseif ($tagResp -imatch '^\s*e(dit)?\s*$') {
+                $customTagInput = Read-Host "  Enter tag name (press ENTER to keep '$ProposedTagName')"
+                if (-not [string]::IsNullOrWhiteSpace($customTagInput)) {
+                    $tagToApply = $customTagInput.Trim()
+                }
+                $confirmedTag = $true
+            } else {
+                Write-Host -ForegroundColor Yellow "Skipped Git tag creation."
+            }
+        }
+
+        if ($confirmedTag) {
+            if (Test-GitTagExists -Tag $tagToApply) {
+                $resolvedTagCollision = Resolve-TagCollision -TagName $tagToApply -NonInteractive:$NonInteractive
+                if (-not $resolvedTagCollision) {
+                    Write-Host -ForegroundColor Yellow "Skipped Git tag creation due to unresolved tag collision."
+                    $confirmedTag = $false
+                } else {
+                    $tagToApply = $resolvedTagCollision
+                }
+            }
+        }
+
+        if ($confirmedTag) {
+            $tagMessageToUse = if (-not [string]::IsNullOrWhiteSpace($TagMessage)) {
+                $TagMessage
+            } else {
+                "Version: $tagToApply"
+            }
+            Write-Host -ForegroundColor Cyan "Creating local Git tag: $tagToApply (message: '$tagMessageToUse')"
+            git tag -a "$tagToApply" -m "$tagMessageToUse" 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host -ForegroundColor Red "Error: Failed to create Git tag '$tagToApply'."
+                exit 1
+            }
+            Write-Host -ForegroundColor Green "  Tag '$tagToApply' created locally."
+
+            # Check if tag should be pushed to remote
+            if ($PushTag) {
+                Write-Host -ForegroundColor Cyan "Pushing tag '$tagToApply' to remote 'origin'..."
+                git push origin "$tagToApply" 2>&1 | Out-Null
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Host -ForegroundColor Yellow "Warning: Failed to push tag '$tagToApply' to remote. You may need to push manually."
+                } else {
+                    Write-Host -ForegroundColor Green "  Tag '$tagToApply' pushed successfully to remote."
+                }
+            } else {
+                Write-Host -ForegroundColor Yellow "  Tag '$tagToApply' exists locally only. (To push to remote, run: git push origin $tagToApply or rerun with -PushTag)."
+            }
+        }
+    } elseif ($PushTag) {
+        $latestTag = Get-MostRecentTag
+        Write-Host ""
+        if (-not $latestTag) {
+            Write-Host -ForegroundColor Yellow "Warning: -PushTag was requested without -CreateVersionTag, but no Git tags were found in repository."
+        } else {
+            $confirmLatestPush = $false
+            if ($NonInteractive) {
+                $confirmLatestPush = $true
+            } else {
+                Write-Host -NoNewline -ForegroundColor Cyan "Push most recent Git tag '$latestTag' to remote 'origin'? [Y]es / [N]o (default: Y): "
+                $pResp = Read-Host
+                if ([string]::IsNullOrWhiteSpace($pResp) -or $pResp -imatch '^\s*y(es)?\s*$') {
+                    $confirmLatestPush = $true
+                }
+            }
+
+            if ($confirmLatestPush) {
+                Write-Host -ForegroundColor Cyan "Pushing tag '$latestTag' to remote 'origin'..."
+                git push origin "$latestTag" 2>&1 | Out-Null
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Host -ForegroundColor Yellow "Warning: Failed to push tag '$latestTag' to remote. You may need to push manually."
+                } else {
+                    Write-Host -ForegroundColor Green "  Tag '$latestTag' pushed successfully to remote."
+                }
+            } else {
+                Write-Host -ForegroundColor Yellow "Skipped remote tag push."
+            }
+        }
+    }
+}
+
+# ==============================================================================
+# Main Controller Logic
+# ==============================================================================
 
 Push-Location $ProjectRoot
 try {
     $isDryRun = $DryRun -or $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('WhatIf')
+    $stage = Resolve-PrereleaseStage -Stage $PrereleaseStage -Alpha:$SetAlpha -Beta:$SetBeta -RC:$SetReleaseCandidate
+    $bumpAction = Resolve-BumpAction -Bump $Bump -Major:$IncrementMajor -Minor:$IncrementMinor -Patch:$IncrementPatch -Prerelease:$IncrementPrerelease
 
-    $stage = $PrereleaseStage
-    if ($SetAlpha) { $stage = "alpha" }
-    elseif ($SetBeta) { $stage = "beta" }
-    elseif ($SetReleaseCandidate) { $stage = "rc" }
+    Assert-ParameterRules `
+        -CurrentVersion:$CurrentVersion `
+        -CreateVersionTag:$CreateVersionTag `
+        -NewVersion $NewVersion `
+        -Bump $Bump `
+        -IncrementMajor:$IncrementMajor `
+        -IncrementMinor:$IncrementMinor `
+        -IncrementPatch:$IncrementPatch `
+        -IncrementPrerelease:$IncrementPrerelease `
+        -PrereleaseStage $PrereleaseStage `
+        -SetAlpha:$SetAlpha `
+        -SetBeta:$SetBeta `
+        -SetReleaseCandidate:$SetReleaseCandidate `
+        -ReleaseVersion:$ReleaseVersion
 
-    $bumpAction = $Bump
-    if ($IncrementMajor) { $bumpAction = "Major" }
-    elseif ($IncrementMinor) { $bumpAction = "Minor" }
-    elseif ($IncrementPatch) { $bumpAction = "Patch" }
-    elseif ($IncrementPrerelease) { $bumpAction = "Prerelease" }
-
-    # Validate -CurrentVersion usage
-    if ($CurrentVersion) {
-        if (-not $CreateVersionTag) {
-            Write-Host -ForegroundColor Red "Error: The -CurrentVersion switch can only be used in combination with -CreateVersionTag."
-            exit 1
-        }
-        $bumpFlagsSpecified = (
-            (-not [string]::IsNullOrWhiteSpace($NewVersion)) -or
-            (-not [string]::IsNullOrWhiteSpace($Bump)) -or
-            $IncrementMajor -or $IncrementMinor -or $IncrementPatch -or $IncrementPrerelease -or
-            (-not [string]::IsNullOrWhiteSpace($PrereleaseStage)) -or
-            $SetAlpha -or $SetBeta -or $SetReleaseCandidate -or $ReleaseVersion
-        )
-        if ($bumpFlagsSpecified) {
-            Write-Host -ForegroundColor Red "Error: The -CurrentVersion switch prevents version bumping and cannot be combined with version increment parameters."
-            exit 1
-        }
-    }
-
-    # Detect if any version bump flag was provided
-    $hasExplicitBumpInput = (
-        (-not [string]::IsNullOrWhiteSpace($NewVersion)) -or
-        (-not [string]::IsNullOrWhiteSpace($Bump)) -or
-        $IncrementMajor -or $IncrementMinor -or $IncrementPatch -or $IncrementPrerelease -or
-        (-not [string]::IsNullOrWhiteSpace($PrereleaseStage)) -or
-        $SetAlpha -or $SetBeta -or $SetReleaseCandidate -or $ReleaseVersion -or
-        $CreateVersionTag
-    )
+    $hasExplicitBumpInput = Test-ExplicitBumpInputSpecified `
+        -NewVersion $NewVersion `
+        -Bump $Bump `
+        -IncrementMajor:$IncrementMajor `
+        -IncrementMinor:$IncrementMinor `
+        -IncrementPatch:$IncrementPatch `
+        -IncrementPrerelease:$IncrementPrerelease `
+        -PrereleaseStage $PrereleaseStage `
+        -SetAlpha:$SetAlpha `
+        -SetBeta:$SetBeta `
+        -SetReleaseCandidate:$SetReleaseCandidate `
+        -ReleaseVersion:$ReleaseVersion `
+        -CreateVersionTag:$CreateVersionTag
 
     # 1. Read Current Version from wails.json (Source of Truth)
     $sourceVersionStr = Get-CurrentVersionFromWails -Path $WailsConfigPath
@@ -592,106 +1175,23 @@ try {
 
     # 2. Handle -ShowCurrentVersion
     if ($ShowCurrentVersion) {
-        Write-Host ""
-        Write-Host -ForegroundColor Cyan "TextoVista Version Information:"
-        Write-Host -NoNewline "  Source of Truth (wails.json) : "; Write-Host -ForegroundColor Green "$($currentFormatted.SemVer)"
-        Write-Host -NoNewline "  Windows File Version         : "; Write-Host -ForegroundColor Green "$($currentFormatted.FileVersion)"
-        if ($mostRecentGitTag) {
-            Write-Host -NoNewline "  Most Recent Git Tag          : "; Write-Host -ForegroundColor Cyan "$mostRecentGitTag"
-        } else {
-            Write-Host -NoNewline "  Most Recent Git Tag          : "; Write-Host -ForegroundColor Yellow "No tags found"
-        }
-        $uncommittedCheck = git status --porcelain=v1
-        Write-Host -NoNewline "  Working Tree Status          : "
-        if ([string]::IsNullOrWhiteSpace($uncommittedCheck)) {
-            Write-Host -ForegroundColor Green "Clean"
-        } else {
-            $dirtyCount = ($uncommittedCheck -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count
-            Write-Host -ForegroundColor Yellow "Dirty ($dirtyCount uncommitted change(s))"
-        }
-        Write-Host ""
-        Write-Host -ForegroundColor Cyan "Target Files Status:"
-        foreach ($target in $TargetFiles) {
-            $p = Join-Path $ProjectRoot $target.RelPath
-            $exists = Test-Path -Path $p
-            $status = if ($exists) { "Found" } else { "Missing" }
-            $color = if ($exists) { "Green" } else { "Red" }
-            Write-Host -NoNewline "  $($target.RelPath.PadRight(40)) ["
-            Write-Host -NoNewline -ForegroundColor $color $status
-            Write-Host "]"
-        }
-        Write-Host ""
+        Show-VersionInformation `
+            -CurrentFormatted $currentFormatted `
+            -MostRecentGitTag $mostRecentGitTag `
+            -ProjectRoot $ProjectRoot `
+            -TargetFiles $TargetFiles
         return
     }
 
     # 3. Verify working tree is clean (no uncommitted changes allowed)
-    $uncommitted = git status --porcelain=v1
-    if (-not [string]::IsNullOrWhiteSpace($uncommitted)) {
-        if ($isDryRun) {
-            Write-Host ""
-            Write-Host -ForegroundColor Yellow "Warning: Working directory has uncommitted changes. A clean repository is required for live execution:"
-            $uncommitted -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object {
-                Write-Host -ForegroundColor Yellow "  $_"
-            }
-            Write-Host ""
-        } else {
-            Write-Host ""
-            Write-Host -ForegroundColor Red "Error: Working directory has uncommitted changes. Repository must be clean before setting version or managing tags:"
-            Write-Host ""
-            $uncommitted -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object {
-                Write-Host -ForegroundColor Yellow "  $_"
-            }
-            Write-Host ""
-            Write-Host "Please commit, stash, or revert these changes before setting version or pushing tags."
-            exit 1
-        }
-    }
+    Assert-GitWorkingTreeClean -IsDryRun:$isDryRun
 
-    # 4. Handle Standalone -PushTag Mode (when -PushTag is passed alone without -CreateVersionTag or bump flags)
+    # 4. Handle Standalone -PushTag Mode
     if ($PushTag -and (-not $CreateVersionTag) -and (-not $hasExplicitBumpInput)) {
-        Write-Host ""
-        Write-Host -ForegroundColor Cyan "=========================================================="
-        Write-Host -ForegroundColor Cyan "             TextoVista Remote Tag Push                   "
-        Write-Host -ForegroundColor Cyan "=========================================================="
-        if (-not $mostRecentGitTag) {
-            Write-Host -ForegroundColor Red "Error: No Git tags found in the repository to push."
-            exit 1
-        }
-
-        Write-Host -NoNewline "  Most Recent Git Tag : "; Write-Host -ForegroundColor Green "$mostRecentGitTag"
-        Write-Host -NoNewline "  Action              : "; Write-Host -ForegroundColor Yellow "Push existing tag '$mostRecentGitTag' to remote 'origin'"
-        Write-Host ""
-
-        if ($isDryRun) {
-            Write-Host -ForegroundColor Yellow "[DryRun / WhatIf Mode] Simulation complete."
-            Write-Host -ForegroundColor Cyan "Planned Git command:"
-            Write-Host "  git push origin $mostRecentGitTag"
-            Write-Host ""
-            return
-        }
-
-        $confirmedPush = $false
-        if ($NonInteractive) {
-            $confirmedPush = $true
-        } else {
-            Write-Host -NoNewline -ForegroundColor Cyan "Push most recent tag '$mostRecentGitTag' to remote 'origin'? [Y]es / [N]o (default: Y): "
-            $resp = Read-Host
-            if ([string]::IsNullOrWhiteSpace($resp) -or $resp -imatch '^\s*y(es)?\s*$') {
-                $confirmedPush = $true
-            }
-        }
-
-        if ($confirmedPush) {
-            Write-Host -ForegroundColor Cyan "Pushing tag '$mostRecentGitTag' to remote 'origin'..."
-            git push origin "$mostRecentGitTag"
-            if ($LASTEXITCODE -ne 0) {
-                Write-Host -ForegroundColor Red "Error: Failed to push tag '$mostRecentGitTag' to remote."
-                exit 1
-            }
-            Write-Host -ForegroundColor Green "Tag '$mostRecentGitTag' successfully pushed to remote!"
-        } else {
-            Write-Host -ForegroundColor Yellow "Tag push cancelled by user."
-        }
+        Invoke-StandaloneTagPush `
+            -MostRecentTag $mostRecentGitTag `
+            -IsDryRun:$isDryRun `
+            -NonInteractive:$NonInteractive
         return
     }
 
@@ -730,14 +1230,13 @@ try {
         Write-Host -ForegroundColor Green "Resolved tag name to apply: '$proposedTagName'"
     }
 
-    # 8. Prepare commit message (Default Conventional Commit: 'chore(release): bump version to <version>')
-    if ([string]::IsNullOrWhiteSpace($Message)) {
-        $finalCommitMessage = "chore(release): bump version to $newSemVer"
+    # 8. Prepare commit message and tag message
+    $finalCommitMessage = if ([string]::IsNullOrWhiteSpace($Message)) {
+        "chore(release): bump version to $newSemVer"
     } else {
-        $finalCommitMessage = $Message
+        $Message
     }
 
-    # Prepare tag message (Default: 'Version: <tag>')
     $finalTagMessage = if (-not [string]::IsNullOrWhiteSpace($TagMessage)) {
         $TagMessage
     } else {
@@ -745,287 +1244,81 @@ try {
     }
 
     # 9. Check current branch and push capability
-    $currentBranch = (git branch --show-current 2>$null).Trim()
-    if ([string]::IsNullOrWhiteSpace($currentBranch)) {
-        $currentBranch = "HEAD (detached)"
-    }
-    $canPushBranch = (-not $NoPush) -and ($currentBranch -ne "HEAD (detached)")
+    $branchInfo = Get-GitBranchInfo -NoPush:$NoPush
 
     # 10. Compute file diff plan
     $diffPlans = Get-FileDiffPlan -BaseDir $ProjectRoot -SemVer $newSemVer -FileVersion $newFileVer
 
     # 11. Display Planned Operations Summary
-    Write-Host ""
-    Write-Host -ForegroundColor Cyan "=========================================================="
-    if ($CurrentVersion) {
-        Write-Host -ForegroundColor Cyan "             TextoVista Version Tag Plan                  "
-    } else {
-        Write-Host -ForegroundColor Cyan "             TextoVista Version Bump Plan                 "
-    }
-    Write-Host -ForegroundColor Cyan "=========================================================="
-    Write-Host "  Source of Truth (wails.json) : $($currentFormatted.SemVer) (Win: $($currentFormatted.FileVersion))"
-    if ($mostRecentGitTag) {
-        Write-Host "  Most Recent Git Tag          : $mostRecentGitTag"
-    }
-    if ($CurrentVersion) {
-        Write-Host -NoNewline "  Target Version               : "; Write-Host -ForegroundColor Green "$newSemVer (Existing version unchanged)"
-        Write-Host "  Version Bump Operations      : Skipped (-CurrentVersion specified; project files will not be modified)"
-    } else {
-        Write-Host -NoNewline "  Target Version               : "; Write-Host -ForegroundColor Green "$newSemVer (Win: $newFileVer)"
-        Write-Host -NoNewline "  Commit Message               : "; Write-Host -ForegroundColor Yellow "$finalCommitMessage"
-        Write-Host -NoNewline "  Git Branch                   : "; Write-Host "$currentBranch"
-        Write-Host -NoNewline "  Push Commit to Remote        : "
-        if ($NoPush) {
-            Write-Host -ForegroundColor Yellow "No (-NoPush specified: Local commit only)"
-        } elseif ($currentBranch -eq "HEAD (detached)") {
-            Write-Host -ForegroundColor Yellow "No (Detached HEAD: Local commit only)"
-        } else {
-            Write-Host -ForegroundColor Green "Yes (origin/$currentBranch)"
-        }
-    }
+    Show-PlannedOperations `
+        -CurrentFormatted $currentFormatted `
+        -MostRecentGitTag $mostRecentGitTag `
+        -NewSemVer $newSemVer `
+        -NewFileVer $newFileVer `
+        -FinalCommitMessage $finalCommitMessage `
+        -CurrentBranch $branchInfo.BranchName `
+        -NoPush:$NoPush `
+        -CreateVersionTag:$CreateVersionTag `
+        -ProposedTagName $proposedTagName `
+        -FinalTagMessage $finalTagMessage `
+        -PushTag:$PushTag `
+        -CurrentVersion:$CurrentVersion `
+        -DiffPlans $diffPlans
 
-    Write-Host -NoNewline "  Create Git Tag Locally       : "
-    if ($CreateVersionTag) {
-        Write-Host -ForegroundColor Green "Yes (-CreateVersionTag specified: Proposed tag '$proposedTagName')"
-    } else {
-        Write-Host -ForegroundColor DarkGray "No (Default: tag will not be created)"
-    }
-    if ($CreateVersionTag) {
-        Write-Host -NoNewline "  Tag Message                  : "; Write-Host -ForegroundColor Yellow "$finalTagMessage"
-    }
-
-    Write-Host -NoNewline "  Push Git Tag to Remote       : "
-    if ($PushTag) {
-        Write-Host -ForegroundColor Green "Yes (-PushTag specified)"
-    } else {
-        Write-Host -ForegroundColor DarkGray "No (Local tag only if created)"
-    }
-
-    if (-not $CurrentVersion) {
-        Write-Host ""
-        Write-Host -ForegroundColor Cyan "Target File Diffs:"
-        foreach ($plan in $diffPlans) {
-            if ($plan.IsModified) {
-                Write-Host "  File: $($plan.RelPath)" -ForegroundColor Magenta
-                foreach ($d in $plan.Diffs) {
-                    Write-Host "    - $($d.Old.Trim())" -ForegroundColor Red
-                    Write-Host "    + $($d.New.Trim())" -ForegroundColor Green
-                }
-            } else {
-                Write-Host "  File: $($plan.RelPath) (already at target version)" -ForegroundColor DarkGray
-            }
-        }
-    }
-    Write-Host ""
-
-    # 11. Handle -WhatIf / -DryRun
+    # 12. Handle -WhatIf / -DryRun
     if ($isDryRun) {
-        Write-Host -ForegroundColor Yellow "[DryRun / WhatIf Mode] Simulation complete. No files or Git references modified."
-        Write-Host ""
-        Write-Host -ForegroundColor Cyan "Planned Git commands that would execute:"
-        if (-not $CurrentVersion) {
-            $relList = ($diffPlans | Where-Object { $_.IsModified } | ForEach-Object { $_.RelPath }) -join " "
-            if (-not [string]::IsNullOrWhiteSpace($relList)) {
-                Write-Host "  git add $relList"
-                Write-Host "  git commit -m `"$finalCommitMessage`""
-                if ($canPushBranch) {
-                    Write-Host "  git push origin $currentBranch"
-                }
-            }
-        }
-        if ($CreateVersionTag) {
-            Write-Host "  git tag -a `"$proposedTagName`" -m `"$finalTagMessage`""
-            if ($PushTag) {
-                Write-Host "  git push origin $proposedTagName"
-            }
-        } elseif ($PushTag -and $mostRecentGitTag) {
-            Write-Host "  git push origin $mostRecentGitTag (after user prompt)"
-        }
-        Write-Host ""
+        Show-DryRunPlan `
+            -CurrentVersion:$CurrentVersion `
+            -DiffPlans $diffPlans `
+            -FinalCommitMessage $finalCommitMessage `
+            -CanPushBranch:$branchInfo.CanPushBranch `
+            -CurrentBranch $branchInfo.BranchName `
+            -CreateVersionTag:$CreateVersionTag `
+            -ProposedTagName $proposedTagName `
+            -FinalTagMessage $finalTagMessage `
+            -PushTag:$PushTag `
+            -MostRecentGitTag $mostRecentGitTag
         return
     }
 
+    # 13. Execute Version Bump Operations (Skipped when -CurrentVersion is used)
     if (-not $CurrentVersion) {
-        # 12. Interactive Prompt: Confirm Version Bump
-        if (-not $NonInteractive) {
-            Write-Host -NoNewline -ForegroundColor Cyan "Apply version bump to '$newSemVer', stage files, and commit? [Y]es / [N]o / [E]dit version or message (default: Y): "
-            $response = Read-Host
-            if ([string]::IsNullOrWhiteSpace($response) -or $response -imatch '^\s*y(es)?\s*$') {
-                # User confirmed
-            } elseif ($response -imatch '^\s*e(dit)?\s*$') {
-                $customVer = Read-Host "  Enter version to set (press ENTER to keep '$newSemVer')"
-                if (-not [string]::IsNullOrWhiteSpace($customVer)) {
-                    $newSemVer = $customVer.Trim() -replace '^[vV]', ''
-                    $parsedCustom = Parse-VersionString -Tag $newSemVer
-                    if ($parsedCustom.IsValid) {
-                        $nextFormatted = Format-BuildVersions $parsedCustom
-                        $newSemVer = $nextFormatted.SemVer
-                        $newFileVer = $nextFormatted.FileVersion
-                        $proposedTagName = $nextFormatted.TagName
-                        $diffPlans = Get-FileDiffPlan -BaseDir $ProjectRoot -SemVer $newSemVer -FileVersion $newFileVer
-                    } else {
-                        Write-Host -ForegroundColor Red "Invalid version format '$customVer'. Aborting."
-                        return
-                    }
-                }
-                $customMsg = Read-Host "  Enter commit message (press ENTER to keep '$finalCommitMessage')"
-                if (-not [string]::IsNullOrWhiteSpace($customMsg)) {
-                    $finalCommitMessage = $customMsg
-                }
-                Write-Host ""
-                Write-Host -ForegroundColor Cyan "Updated Target Version: $newSemVer | Commit Message: $finalCommitMessage"
-                $confirm2 = Read-Host "Proceed with these updated values? [Y/n]"
-                if ($confirm2 -inotmatch '^\s*(y(es)?|$)\s*$') {
-                    Write-Host -ForegroundColor Yellow "Operation cancelled by user. No changes made."
-                    return
-                }
-            } else {
-                Write-Host -ForegroundColor Yellow "Operation cancelled by user. No changes made."
-                return
-            }
+        $bumpPlan = Confirm-VersionBumpPrompt `
+            -NewSemVer $newSemVer `
+            -NewFileVer $newFileVer `
+            -ProposedTagName $proposedTagName `
+            -FinalCommitMessage $finalCommitMessage `
+            -DiffPlans $diffPlans `
+            -ProjectRoot $ProjectRoot `
+            -NonInteractive:$NonInteractive
+
+        if (-not $bumpPlan) {
+            return
         }
 
-        # 13. Execute File Updates
+        $newSemVer = $bumpPlan.NewSemVer
+        $newFileVer = $bumpPlan.NewFileVer
+        $proposedTagName = $bumpPlan.ProposedTagName
+        $finalCommitMessage = $bumpPlan.FinalCommitMessage
+        $diffPlans = $bumpPlan.DiffPlans
+
         Write-Host -ForegroundColor Cyan "Applying file updates..."
         Apply-FileUpdates -DiffPlans $diffPlans
 
-        # 14. Git Stage & Commit Version Bump
-        Write-Host -ForegroundColor Cyan "Staging files in Git..."
-        $modifiedFiles = $diffPlans | Where-Object { $_.IsModified } | ForEach-Object { $_.RelPath }
-        if ($modifiedFiles.Count -gt 0) {
-            git add $modifiedFiles 2>&1 | Out-Null
-            if ($LASTEXITCODE -ne 0) {
-                Write-Host -ForegroundColor Red "Error: Failed to stage files in Git."
-                exit 1
-            }
-
-            Write-Host -ForegroundColor Cyan "Committing changes: $finalCommitMessage"
-            git commit -m "$finalCommitMessage" 2>&1 | Out-Null
-            if ($LASTEXITCODE -ne 0) {
-                Write-Host -ForegroundColor Red "Error: Failed to commit changes to Git."
-                exit 1
-            }
-            Write-Host -ForegroundColor Green "  Commit created successfully."
-
-            # Push Version Bump Commit to Remote
-            if ($canPushBranch) {
-                Write-Host -ForegroundColor Cyan "Pushing version bump commit to remote 'origin/$currentBranch'..."
-                git push origin "$currentBranch" 2>&1 | Out-Null
-                if ($LASTEXITCODE -ne 0) {
-                    Write-Host -ForegroundColor Yellow "Warning: Failed to push branch '$currentBranch' to remote. You may need to push manually."
-                } else {
-                    Write-Host -ForegroundColor Green "  Version bump commit pushed successfully to remote."
-                }
-            } else {
-                Write-Host -ForegroundColor Yellow "  Skipped remote commit push (NoPush specified or detached HEAD)."
-            }
-        } else {
-            Write-Host -ForegroundColor Yellow "  No file changes to commit (files already at target version)."
-        }
+        Invoke-VersionBumpCommit `
+            -DiffPlans $diffPlans `
+            -CommitMessage $finalCommitMessage `
+            -CurrentBranch $branchInfo.BranchName `
+            -CanPushBranch:$branchInfo.CanPushBranch
     }
 
-    # 15. Tag Handling Logic
-    $tagToApply = $proposedTagName
-
-    if ($CreateVersionTag) {
-        $tagMessageToUse = if (-not [string]::IsNullOrWhiteSpace($TagMessage)) {
-            $TagMessage
-        } else {
-            "Version: $tagToApply"
-        }
-
-        # Prompt user to verify or change the proposed tag
-        $confirmedTag = $false
-        if ($NonInteractive) {
-            $confirmedTag = $true
-        } else {
-            Write-Host ""
-            Write-Host -NoNewline -ForegroundColor Cyan "Create local Git tag '$proposedTagName' (message: '$tagMessageToUse')? [Y]es / [N]o / [E]dit tag name (default: Y): "
-            $tagResp = Read-Host
-            if ([string]::IsNullOrWhiteSpace($tagResp) -or $tagResp -imatch '^\s*y(es)?\s*$') {
-                $confirmedTag = $true
-            } elseif ($tagResp -imatch '^\s*e(dit)?\s*$') {
-                $customTagInput = Read-Host "  Enter tag name (press ENTER to keep '$proposedTagName')"
-                if (-not [string]::IsNullOrWhiteSpace($customTagInput)) {
-                    $tagToApply = $customTagInput.Trim()
-                }
-                $confirmedTag = $true
-            } else {
-                Write-Host -ForegroundColor Yellow "Skipped Git tag creation."
-            }
-        }
-
-        if ($confirmedTag) {
-            if (Test-GitTagExists -Tag $tagToApply) {
-                $resolvedTag15 = Resolve-TagCollision -TagName $tagToApply -NonInteractive:$NonInteractive
-                if (-not $resolvedTag15) {
-                    Write-Host -ForegroundColor Yellow "Skipped Git tag creation due to unresolved tag collision."
-                    $confirmedTag = $false
-                } else {
-                    $tagToApply = $resolvedTag15
-                }
-            }
-        }
-
-        if ($confirmedTag) {
-            $tagMessageToUse = if (-not [string]::IsNullOrWhiteSpace($TagMessage)) {
-                $TagMessage
-            } else {
-                "Version: $tagToApply"
-            }
-            Write-Host -ForegroundColor Cyan "Creating local Git tag: $tagToApply (message: '$tagMessageToUse')"
-            git tag -a "$tagToApply" -m "$tagMessageToUse" 2>&1 | Out-Null
-            if ($LASTEXITCODE -ne 0) {
-                Write-Host -ForegroundColor Red "Error: Failed to create Git tag '$tagToApply'."
-                exit 1
-            }
-            Write-Host -ForegroundColor Green "  Tag '$tagToApply' created locally."
-
-            # Check if tag should be pushed to remote
-            if ($PushTag) {
-                # Pushed immediately since tag was confirmed
-                Write-Host -ForegroundColor Cyan "Pushing tag '$tagToApply' to remote 'origin'..."
-                git push origin "$tagToApply" 2>&1 | Out-Null
-                if ($LASTEXITCODE -ne 0) {
-                    Write-Host -ForegroundColor Yellow "Warning: Failed to push tag '$tagToApply' to remote. You may need to push manually."
-                } else {
-                    Write-Host -ForegroundColor Green "  Tag '$tagToApply' pushed successfully to remote."
-                }
-            } else {
-                Write-Host -ForegroundColor Yellow "  Tag '$tagToApply' exists locally only. (To push to remote, run: git push origin $tagToApply or rerun with -PushTag)."
-            }
-        }
-    } elseif ($PushTag) {
-        # -PushTag specified WITHOUT -CreateVersionTag: Check current most recent tag and prompt
-        $latestTag = Get-MostRecentTag
-        Write-Host ""
-        if (-not $latestTag) {
-            Write-Host -ForegroundColor Yellow "Warning: -PushTag was requested without -CreateVersionTag, but no Git tags were found in repository."
-        } else {
-            $confirmLatestPush = $false
-            if ($NonInteractive) {
-                $confirmLatestPush = $true
-            } else {
-                Write-Host -NoNewline -ForegroundColor Cyan "Push most recent Git tag '$latestTag' to remote 'origin'? [Y]es / [N]o (default: Y): "
-                $pResp = Read-Host
-                if ([string]::IsNullOrWhiteSpace($pResp) -or $pResp -imatch '^\s*y(es)?\s*$') {
-                    $confirmLatestPush = $true
-                }
-            }
-
-            if ($confirmLatestPush) {
-                Write-Host -ForegroundColor Cyan "Pushing tag '$latestTag' to remote 'origin'..."
-                git push origin "$latestTag" 2>&1 | Out-Null
-                if ($LASTEXITCODE -ne 0) {
-                    Write-Host -ForegroundColor Yellow "Warning: Failed to push tag '$latestTag' to remote. You may need to push manually."
-                } else {
-                    Write-Host -ForegroundColor Green "  Tag '$latestTag' pushed successfully to remote."
-                }
-            } else {
-                Write-Host -ForegroundColor Yellow "Skipped remote tag push."
-            }
-        }
-    }
+    # 14. Tag Handling Logic
+    Invoke-TagOperations `
+        -CreateVersionTag:$CreateVersionTag `
+        -ProposedTagName $proposedTagName `
+        -TagMessage $TagMessage `
+        -PushTag:$PushTag `
+        -NonInteractive:$NonInteractive
 
     Write-Host ""
     Write-Host -ForegroundColor Green "Set-Version completed successfully!"
