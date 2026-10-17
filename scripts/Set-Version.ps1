@@ -19,7 +19,7 @@
         The commit message for setting the version. Defaults to 'chore(release): bump version to <version>'.
         Alias: -CommitMessage.
     .PARAMETER TagMessage
-        The annotation message for creating the Git tag. Defaults to 'chore(tag): tag set to <tag>'.
+        The annotation message for creating the Git tag. Defaults to 'Version: <tag>'.
     .PARAMETER Bump
         The version segment to increment: 'Patch', 'Minor', 'Major', or 'Prerelease'.
     .PARAMETER IncrementPatch
@@ -92,7 +92,7 @@ param (
     [Alias("CommitMessage")]
     [string]$Message = "",
 
-    [Parameter(HelpMessage = "The tag message for setting the tag. Defaults to 'chore(tag): tag set to <tag>'.")]
+    [Parameter(HelpMessage = "The tag message for setting the tag. Defaults to 'Version: <tag>'.")]
     [string]$TagMessage = "",
 
     [Parameter(HelpMessage = "The version segment to increment.")]
@@ -737,11 +737,11 @@ try {
         $finalCommitMessage = $Message
     }
 
-    # Prepare tag message (Default Conventional Commit: 'chore(tag): tag set to <tag>')
+    # Prepare tag message (Default: 'Version: <tag>')
     $finalTagMessage = if (-not [string]::IsNullOrWhiteSpace($TagMessage)) {
         $TagMessage
     } else {
-        "chore(tag): tag set to $proposedTagName"
+        "Version: $proposedTagName"
     }
 
     # 9. Check current branch and push capability
@@ -931,7 +931,7 @@ try {
         $tagMessageToUse = if (-not [string]::IsNullOrWhiteSpace($TagMessage)) {
             $TagMessage
         } else {
-            "chore(tag): tag set to $tagToApply"
+            "Version: $tagToApply"
         }
 
         # Prompt user to verify or change the proposed tag
@@ -971,7 +971,7 @@ try {
             $tagMessageToUse = if (-not [string]::IsNullOrWhiteSpace($TagMessage)) {
                 $TagMessage
             } else {
-                "chore(tag): tag set to $tagToApply"
+                "Version: $tagToApply"
             }
             Write-Host -ForegroundColor Cyan "Creating local Git tag: $tagToApply (message: '$tagMessageToUse')"
             git tag -a "$tagToApply" -m "$tagMessageToUse" 2>&1 | Out-Null
