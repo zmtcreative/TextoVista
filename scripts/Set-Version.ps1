@@ -230,6 +230,13 @@ function Get-MostRecentTag {
     return $null
 }
 
+function Test-GitTagExists {
+    param ([string]$Tag)
+    if ([string]::IsNullOrWhiteSpace($Tag)) { return $false }
+    $found = git tag -l $Tag.Trim() 2>$null
+    return ($found -and ($found -contains $Tag.Trim() -or $found -eq $Tag.Trim()))
+}
+
 function Parse-VersionString {
     param ([string]$Tag)
     $clean = $Tag.Trim() -replace '^[vV]', ''
@@ -517,6 +524,14 @@ try {
         } else {
             Write-Host -NoNewline "  Most Recent Git Tag          : "; Write-Host -ForegroundColor Yellow "No tags found"
         }
+        $uncommittedCheck = git status --porcelain=v1
+        Write-Host -NoNewline "  Working Tree Status          : "
+        if ([string]::IsNullOrWhiteSpace($uncommittedCheck)) {
+            Write-Host -ForegroundColor Green "Clean"
+        } else {
+            $dirtyCount = ($uncommittedCheck -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count
+            Write-Host -ForegroundColor Yellow "Dirty ($dirtyCount uncommitted change(s))"
+        }
         Write-Host ""
         Write-Host -ForegroundColor Cyan "Target Files Status:"
         foreach ($target in $TargetFiles) {
@@ -532,7 +547,30 @@ try {
         return
     }
 
-    # 3. Handle Standalone -PushTag Mode (when -PushTag is passed alone without -CreateVersionTag or bump flags)
+    # 3. Verify working tree is clean (no uncommitted changes allowed)
+    $uncommitted = git status --porcelain=v1
+    if (-not [string]::IsNullOrWhiteSpace($uncommitted)) {
+        if ($isDryRun) {
+            Write-Host ""
+            Write-Host -ForegroundColor Yellow "Warning: Working directory has uncommitted changes. A clean repository is required for live execution:"
+            $uncommitted -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object {
+                Write-Host -ForegroundColor Yellow "  $_"
+            }
+            Write-Host ""
+        } else {
+            Write-Host ""
+            Write-Host -ForegroundColor Red "Error: Working directory has uncommitted changes. Repository must be clean before setting version or managing tags:"
+            Write-Host ""
+            $uncommitted -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object {
+                Write-Host -ForegroundColor Yellow "  $_"
+            }
+            Write-Host ""
+            Write-Host "Please commit, stash, or revert these changes before setting version or pushing tags."
+            exit 1
+        }
+    }
+
+    # 4. Handle Standalone -PushTag Mode (when -PushTag is passed alone without -CreateVersionTag or bump flags)
     if ($PushTag -and (-not $CreateVersionTag) -and (-not $hasExplicitBumpInput)) {
         Write-Host ""
         Write-Host -ForegroundColor Cyan "=========================================================="
@@ -580,39 +618,6 @@ try {
         return
     }
 
-    # 4. Verify working tree is clean (allowing target files and Set-Version.ps1 / New-GitTag.ps1)
-    $uncommitted = git status --porcelain=v1
-    if (-not [string]::IsNullOrWhiteSpace($uncommitted)) {
-        $dirtyLines = $uncommitted -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-        $otherChanges = @()
-        foreach ($line in $dirtyLines) {
-            $file = $line.Substring(3).Trim()
-            $isTarget = $false
-            if ($file -match 'Set-Version\.ps1$' -or $file -match 'New-GitTag\.ps1$') {
-                $isTarget = $true
-            }
-            foreach ($tf in $TargetFiles) {
-                if ($file -eq $tf.RelPath -or $file -eq ($tf.RelPath -replace '/', '\')) {
-                    $isTarget = $true
-                    break
-                }
-            }
-            if (-not $isTarget) {
-                $otherChanges += $line
-            }
-        }
-
-        if ($otherChanges.Count -gt 0) {
-            Write-Host ""
-            Write-Host -ForegroundColor Red "Error: Working directory has uncommitted changes that are not part of the release files:"
-            Write-Host ""
-            $otherChanges | ForEach-Object { Write-Host -ForegroundColor Yellow "  $_" }
-            Write-Host ""
-            Write-Host "Please commit, stash, or revert these changes before setting version."
-            exit 1
-        }
-    }
-
     # 5. Verify all target files exist
     if (-not (Test-TargetFilesExist -BaseDir $ProjectRoot)) {
         Write-Host -ForegroundColor Red "Aborting: One or more target files are missing."
@@ -632,24 +637,40 @@ try {
     $newFileVer = $nextFormatted.FileVersion
     $proposedTagName = $nextFormatted.TagName
 
-    # 7. Prepare commit message (Default Conventional Commit: 'chore(release): bump version to <version>')
+    # 7. Check if proposed tag already exists when -CreateVersionTag is specified
+    $tagAlreadyExists = Test-GitTagExists -Tag $proposedTagName
+    if ($CreateVersionTag -and $tagAlreadyExists) {
+        if ($isDryRun) {
+            Write-Host ""
+            Write-Host -ForegroundColor Yellow "[DryRun] Warning: Git tag '$proposedTagName' already exists in the repository. Live execution will be blocked."
+        } else {
+            Write-Host ""
+            Write-Host -ForegroundColor Red "Error: Git tag '$proposedTagName' for version '$newSemVer' already exists in the repository."
+            Write-Host -ForegroundColor Yellow "Cannot create duplicate tag. Aborting before making any file changes or commits."
+            Write-Host "Please bump the version (e.g., -IncrementPatch, -IncrementMinor, -IncrementMajor) or specify an alternate version."
+            Write-Host ""
+            exit 1
+        }
+    }
+
+    # 8. Prepare commit message (Default Conventional Commit: 'chore(release): bump version to <version>')
     if ([string]::IsNullOrWhiteSpace($Message)) {
         $finalCommitMessage = "chore(release): bump version to $newSemVer"
     } else {
         $finalCommitMessage = $Message
     }
 
-    # 8. Check current branch and push capability
+    # 9. Check current branch and push capability
     $currentBranch = (git branch --show-current 2>$null).Trim()
     if ([string]::IsNullOrWhiteSpace($currentBranch)) {
         $currentBranch = "HEAD (detached)"
     }
     $canPushBranch = (-not $NoPush) -and ($currentBranch -ne "HEAD (detached)")
 
-    # 9. Compute file diff plan
+    # 10. Compute file diff plan
     $diffPlans = Get-FileDiffPlan -BaseDir $ProjectRoot -SemVer $newSemVer -FileVersion $newFileVer
 
-    # 10. Display Planned Operations Summary
+    # 11. Display Planned Operations Summary
     Write-Host ""
     Write-Host -ForegroundColor Cyan "=========================================================="
     Write-Host -ForegroundColor Cyan "             TextoVista Version Bump Plan                 "
@@ -672,7 +693,11 @@ try {
 
     Write-Host -NoNewline "  Create Git Tag Locally       : "
     if ($CreateVersionTag) {
-        Write-Host -ForegroundColor Green "Yes (-CreateVersionTag specified: Proposed tag '$proposedTagName')"
+        if ($tagAlreadyExists) {
+            Write-Host -ForegroundColor Red "BLOCKED (Git tag '$proposedTagName' already exists in repository!)"
+        } else {
+            Write-Host -ForegroundColor Green "Yes (-CreateVersionTag specified: Proposed tag '$proposedTagName')"
+        }
     } else {
         Write-Host -ForegroundColor DarkGray "No (Default: tag will not be created)"
     }
@@ -827,6 +852,10 @@ try {
         }
 
         if ($confirmedTag) {
+            if (Test-GitTagExists -Tag $tagToApply) {
+                Write-Host -ForegroundColor Red "Error: Git tag '$tagToApply' already exists in the repository. Cannot create duplicate tag."
+                exit 1
+            }
             Write-Host -ForegroundColor Cyan "Creating local Git tag: $tagToApply"
             git tag -a "$tagToApply" -m "$finalCommitMessage" 2>&1 | Out-Null
             if ($LASTEXITCODE -ne 0) {
