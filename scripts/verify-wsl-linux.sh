@@ -62,9 +62,9 @@ else
 fi
 
 frontend_dir="$project_root/frontend"
-go_version="1.25.0"
-node_major_version="22"
-wails_version="v2.12.0"
+go_version="1.27.0"
+node_major_version="24"
+wails_version="v2.16.0"
 changes_made=()
 
 required_apt_packages=(
