@@ -21,7 +21,7 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/stefanfritsch/goldmark-fences v1.0.0
 	github.com/tidwall/gjson v1.19.0
-	github.com/wailsapp/wails/v2 v2.12.0
+	github.com/wailsapp/wails/v2 v2.16.0
 	github.com/yuin/goldmark v1.8.2
 	github.com/yuin/goldmark-emoji v1.0.6
 	github.com/yuin/goldmark-highlighting/v2 v2.0.0-20230729083705-37449abec8cc
@@ -32,8 +32,8 @@ require (
 	go.abhg.dev/goldmark/anchor v0.2.0
 	go.abhg.dev/goldmark/frontmatter v0.3.0
 	go.abhg.dev/goldmark/mermaid v0.6.0
-	golang.org/x/net v0.55.0
-	golang.org/x/text v0.37.0
+	golang.org/x/net v0.56.0
+	golang.org/x/text v0.39.0
 	oss.terrastruct.com/d2 v0.7.1
 )
 
@@ -90,10 +90,10 @@ require (
 	github.com/wailsapp/go-webview2 v1.0.23 // indirect
 	github.com/wailsapp/mimetype v1.4.1 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/crypto v0.52.0 // indirect
+	golang.org/x/crypto v0.53.0 // indirect
 	golang.org/x/exp v0.0.0-20260529124908-c761662dc8c9 // indirect
 	golang.org/x/image v0.41.0 // indirect
-	golang.org/x/sys v0.45.0 // indirect
+	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

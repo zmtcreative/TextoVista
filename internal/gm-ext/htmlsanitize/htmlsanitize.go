@@ -14,6 +14,7 @@ import (
 	"github.com/yuin/goldmark/renderer"
 	"github.com/yuin/goldmark/util"
 	gohtml "golang.org/x/net/html"
+	"golang.org/x/net/html/atom"
 )
 
 //go:embed assets/images/broken-file.svg
@@ -287,27 +288,30 @@ func filterHTML(raw string) string {
 		}
 	}
 
-	doc, err := gohtml.ParseFragment(strings.NewReader(raw), nil)
+	contextNode := &gohtml.Node{
+		Type:     gohtml.ElementNode,
+		Data:     "html",
+		DataAtom: atom.Html,
+	}
+	nodes, err := gohtml.ParseFragment(strings.NewReader(raw), contextNode)
 	if err != nil {
 		return raw // Return original on parse error
 	}
 
-	filteredNodes := filterNodeList(doc)
-	var buf bytes.Buffer
+	for _, n := range nodes {
+		contextNode.AppendChild(n)
+	}
 
-	// Instead of rendering full nodes (which include html/body wrapper),
-	// we need to extract and render only the content we care about
-	for _, node := range filteredNodes {
-		if node.Type == gohtml.ElementNode && node.Data == "html" {
-			// Find the body element and render its children
-			if body := findBodyNode(node); body != nil {
-				for child := body.FirstChild; child != nil; child = child.NextSibling {
-					_ = gohtml.Render(&buf, child)
-				}
-			}
-		} else {
-			// For non-html nodes, render directly
-			_ = gohtml.Render(&buf, node)
+	filterNode(contextNode)
+
+	var buf bytes.Buffer
+	if body := findBodyNode(contextNode); body != nil {
+		for child := body.FirstChild; child != nil; child = child.NextSibling {
+			_ = gohtml.Render(&buf, child)
+		}
+	} else {
+		for child := contextNode.FirstChild; child != nil; child = child.NextSibling {
+			_ = gohtml.Render(&buf, child)
 		}
 	}
 
