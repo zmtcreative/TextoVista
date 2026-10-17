@@ -16,7 +16,10 @@
         The explicit version or Git tag to set (e.g., '0.6.0' or 'v0.6.0').
         Aliases: -Version, -TagName, -TargetVersion.
     .PARAMETER Message
-        The commit and tag message. Defaults to 'chore(release): bump version to X.Y.Z'.
+        The commit message for setting the version. Defaults to 'chore(release): bump version to <version>'.
+        Alias: -CommitMessage.
+    .PARAMETER TagMessage
+        The annotation message for creating the Git tag. Defaults to 'chore(tag): tag set to <tag>'.
     .PARAMETER Bump
         The version segment to increment: 'Patch', 'Minor', 'Major', or 'Prerelease'.
     .PARAMETER IncrementPatch
@@ -79,8 +82,12 @@ param (
     [Alias("Version", "TagName", "TargetVersion")]
     [string]$NewVersion = "",
 
-    [Parameter(HelpMessage = "The commit message (and tag message if created). Defaults to 'chore(release): bump version to <version>'.")]
+    [Parameter(HelpMessage = "The commit message for setting the version. Defaults to 'chore(release): bump version to <version>'.")]
+    [Alias("CommitMessage")]
     [string]$Message = "",
+
+    [Parameter(HelpMessage = "The tag message for setting the tag. Defaults to 'chore(tag): tag set to <tag>'.")]
+    [string]$TagMessage = "",
 
     [Parameter(HelpMessage = "The version segment to increment.")]
     [ValidateSet('Patch', 'Minor', 'Major', 'Prerelease')]
@@ -698,6 +705,13 @@ try {
         $finalCommitMessage = $Message
     }
 
+    # Prepare tag message (Default Conventional Commit: 'chore(tag): tag set to <tag>')
+    $finalTagMessage = if (-not [string]::IsNullOrWhiteSpace($TagMessage)) {
+        $TagMessage
+    } else {
+        "chore(tag): tag set to $proposedTagName"
+    }
+
     # 9. Check current branch and push capability
     $currentBranch = (git branch --show-current 2>$null).Trim()
     if ([string]::IsNullOrWhiteSpace($currentBranch)) {
@@ -719,6 +733,9 @@ try {
     }
     Write-Host -NoNewline "  Target Version               : "; Write-Host -ForegroundColor Green "$newSemVer (Win: $newFileVer)"
     Write-Host -NoNewline "  Commit Message               : "; Write-Host -ForegroundColor Yellow "$finalCommitMessage"
+    if ($CreateVersionTag) {
+        Write-Host -NoNewline "  Tag Message                  : "; Write-Host -ForegroundColor Yellow "$finalTagMessage"
+    }
     Write-Host -NoNewline "  Git Branch                   : "; Write-Host "$currentBranch"
     Write-Host -NoNewline "  Push Commit to Remote        : "
     if ($NoPush) {
@@ -772,7 +789,7 @@ try {
             }
         }
         if ($CreateVersionTag) {
-            Write-Host "  git tag -a `"$proposedTagName`" -m `"$finalCommitMessage`""
+            Write-Host "  git tag -a `"$proposedTagName`" -m `"$finalTagMessage`""
             if ($PushTag) {
                 Write-Host "  git push origin $proposedTagName"
             }
@@ -864,13 +881,19 @@ try {
     $tagToApply = $proposedTagName
 
     if ($CreateVersionTag) {
+        $tagMessageToUse = if (-not [string]::IsNullOrWhiteSpace($TagMessage)) {
+            $TagMessage
+        } else {
+            "chore(tag): tag set to $tagToApply"
+        }
+
         # Prompt user to verify or change the proposed tag
         $confirmedTag = $false
         if ($NonInteractive) {
             $confirmedTag = $true
         } else {
             Write-Host ""
-            Write-Host -NoNewline -ForegroundColor Cyan "Create local Git tag using proposed tag '$proposedTagName'? [Y]es / [N]o / [E]dit tag name (default: Y): "
+            Write-Host -NoNewline -ForegroundColor Cyan "Create local Git tag '$proposedTagName' (message: '$tagMessageToUse')? [Y]es / [N]o / [E]dit tag name (default: Y): "
             $tagResp = Read-Host
             if ([string]::IsNullOrWhiteSpace($tagResp) -or $tagResp -imatch '^\s*y(es)?\s*$') {
                 $confirmedTag = $true
@@ -898,8 +921,13 @@ try {
         }
 
         if ($confirmedTag) {
-            Write-Host -ForegroundColor Cyan "Creating local Git tag: $tagToApply"
-            git tag -a "$tagToApply" -m "$finalCommitMessage" 2>&1 | Out-Null
+            $tagMessageToUse = if (-not [string]::IsNullOrWhiteSpace($TagMessage)) {
+                $TagMessage
+            } else {
+                "chore(tag): tag set to $tagToApply"
+            }
+            Write-Host -ForegroundColor Cyan "Creating local Git tag: $tagToApply (message: '$tagMessageToUse')"
+            git tag -a "$tagToApply" -m "$tagMessageToUse" 2>&1 | Out-Null
             if ($LASTEXITCODE -ne 0) {
                 Write-Host -ForegroundColor Red "Error: Failed to create Git tag '$tagToApply'."
                 exit 1
