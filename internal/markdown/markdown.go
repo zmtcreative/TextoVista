@@ -14,8 +14,8 @@ import (
 	// "md-reader/internal/gm-ext/sectionwrapper"
 	alertcallouts "github.com/zmtcreative/gm-alert-callouts"
 	sectionwrapper "github.com/zmtcreative/gm-sectionwrapper"
-	"oss.terrastruct.com/d2/d2layouts/d2elklayout"
-	"oss.terrastruct.com/d2/d2themes/d2themescatalog"
+	"github.com/d2lang/d2/d2layouts/d2elklayout"
+	"github.com/d2lang/d2/d2themes/d2themescatalog"
 
 	chromahtml "github.com/alecthomas/chroma/v2/formatters/html"
 	figure "github.com/mangoumbrella/goldmark-figure"
