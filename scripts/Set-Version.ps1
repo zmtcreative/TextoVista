@@ -447,28 +447,63 @@ function Parse-VersionString {
     param ([string]$Tag)
     $clean = $Tag.Trim() -replace '^[vV]', ''
     $obj = [PSCustomObject]@{
-        Raw        = $Tag
-        Major      = 0
-        Minor      = 0
-        Patch      = 0
-        Prerelease = $null
-        Stage      = $null
-        StageNum   = $null
-        IsValid    = $false
+        Raw              = $Tag
+        Major            = 0
+        Minor            = 0
+        Patch            = 0
+        Prerelease       = $null
+        Stage            = $null
+        StageNum         = $null
+        StageDelimiter   = ""
+        HasBuildMetadata = $false
+        ValidationError  = $null
+        IsValid          = $false
     }
 
-    if ($clean -match '^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?:-(?<prerelease>[0-9A-Za-z.-]+))?$') {
-        $obj.Major = [int]$Matches.major
-        $obj.Minor = [int]$Matches.minor
-        $obj.Patch = [int]$Matches.patch
-        $obj.Prerelease = $Matches.prerelease
+    # Explicitly check for and disallow build metadata (+buildmetadata)
+    if ($clean -match '\+') {
+        $obj.HasBuildMetadata = $true
+        $obj.ValidationError = "Build metadata ('+...') is not permitted in project versions for TextoVista/Windows compatibility."
+        return $obj
+    }
+
+    # Match core SemVer X.Y.Z with optional prerelease
+    if ($clean -notmatch '^(?<major>0|[1-9]\d*)\.(?<minor>0|[1-9]\d*)\.(?<patch>0|[1-9]\d*)(?:-(?<prerelease>.+))?$') {
+        $obj.ValidationError = "Version '$Tag' does not match semantic version format (expected 'X.Y.Z' or 'vX.Y.Z', e.g., '1.0.0' or 'v1.0.0-rc1')."
+        return $obj
+    }
+
+    $obj.Major = [int]$Matches.major
+    $obj.Minor = [int]$Matches.minor
+    $obj.Patch = [int]$Matches.patch
+
+    # If no prerelease, valid full release version
+    if (-not $Matches.prerelease) {
         $obj.IsValid = $true
-
-        if ($Matches.prerelease -and $Matches.prerelease -match '^(?<stage>alpha|beta|rc)[.-]?(?<num>\d+)?$') {
-            $obj.Stage = $Matches.stage.ToLower()
-            $obj.StageNum = if ([string]::IsNullOrWhiteSpace($Matches.num)) { 1 } else { [int]$Matches.num }
-        }
+        return $obj
     }
+
+    $prerelease = $Matches.prerelease
+    # Allowed prerelease formats: alpha, beta, rc with optional . or - or empty delimiter and optional 0-999 number
+    if ($prerelease -notmatch '^(?<stage>alpha|beta|rc)(?:(?<delim>[.-])?(?<num>0|[1-9]\d*))?$') {
+        $obj.ValidationError = "Prerelease stage '$prerelease' is not permitted. Only 'alpha', 'beta', or 'rc' stages (e.g., '-alpha.1', '-alpha-1', '-beta2', '-rc1') with numbers 0-999 are allowed."
+        return $obj
+    }
+
+    $stage = $Matches.stage.ToLower()
+    $delim = if ($Matches.delim) { $Matches.delim } else { "" }
+    $num = if (-not [string]::IsNullOrWhiteSpace($Matches.num)) { [int]$Matches.num } else { 0 }
+
+    if ($num -gt 999) {
+        $obj.ValidationError = "Prerelease number '$num' exceeds maximum allowed value of 999."
+        return $obj
+    }
+
+    $obj.Prerelease = $prerelease
+    $obj.Stage = $stage
+    $obj.StageNum = $num
+    $obj.StageDelimiter = $delim
+    $obj.IsValid = $true
     return $obj
 }
 
@@ -482,22 +517,23 @@ function Format-BuildVersions {
 
     # Windows 4-part numeric version: Major.Minor.Patch.Suffix
     # Final releases use fixed 65432 so they always compare as newer than any prerelease.
-    # Prereleases: alpha -> 1000 + n, beta -> 2000 + n, rc -> 3000 + n
+    # Prereleases: alpha -> 1000 + n, beta -> 2000 + n, rc -> 3000 + n (where n is 0-999; defaults to 0 if omitted)
+    # Supports delimiter styles: -alphaN, -alpha.N, and -alpha-N
     $stages = @('alpha', 'beta', 'rc')
     $fileVersionSuffix = 65432
     if ($vObj.Prerelease) {
         if ($vObj.Stage) {
             $stageIndex = $stages.IndexOf($vObj.Stage) + 1
             if ($stageIndex -gt 0) {
-                $num = if ($vObj.StageNum) { [int]$vObj.StageNum } else { 1 }
+                $num = if ($null -ne $vObj.StageNum) { [int]$vObj.StageNum } else { 0 }
                 $fileVersionSuffix = ($stageIndex * 1000) + $num
             }
             else {
-                $fileVersionSuffix = 1001
+                $fileVersionSuffix = 1000
             }
         }
         else {
-            $fileVersionSuffix = 1001
+            $fileVersionSuffix = 1000
         }
     }
 
@@ -522,7 +558,7 @@ function Calculate-NextVersion {
     if (-not [string]::IsNullOrWhiteSpace($ExplicitTag)) {
         $parsed = Parse-VersionString -Tag $ExplicitTag
         if (-not $parsed.IsValid) {
-            throw "Invalid explicit version/tag provided: '$ExplicitTag'. Must follow SemVer (e.g., '0.6.0' or 'v0.6.0-beta1')."
+            throw "Invalid explicit version/tag provided: '$ExplicitTag'. $($parsed.ValidationError)"
         }
         return $parsed
     }
@@ -533,17 +569,19 @@ function Calculate-NextVersion {
     $prerelease = $null
     $stageName = $null
     $stageNum = $null
+    $delim = ""
 
     # If -Release is requested, strip prerelease from current version
     if ($IsRelease) {
         return [PSCustomObject]@{
-            Major      = $major
-            Minor      = $minor
-            Patch      = $patch
-            Prerelease = $null
-            Stage      = $null
-            StageNum   = $null
-            IsValid    = $true
+            Major          = $major
+            Minor          = $minor
+            Patch          = $patch
+            Prerelease     = $null
+            Stage          = $null
+            StageNum       = $null
+            StageDelimiter = ""
+            IsValid        = $true
         }
     }
 
@@ -578,6 +616,7 @@ function Calculate-NextVersion {
             $patch++
         }
         "Prerelease" {
+            $delim = if ($CurrentObj.StageDelimiter) { $CurrentObj.StageDelimiter } else { "" }
             if ($CurrentObj.Prerelease -and $CurrentObj.Stage) {
                 $stageName = if ($RequestedStage) { $RequestedStage.ToLower() } else { $CurrentObj.Stage }
                 $stageNum = if ($RequestedStage -and ($RequestedStage.ToLower() -ne $CurrentObj.Stage)) {
@@ -592,7 +631,10 @@ function Calculate-NextVersion {
                 $stageName = if ($RequestedStage) { $RequestedStage.ToLower() } else { "alpha" }
                 $stageNum = 1
             }
-            $prerelease = "${stageName}${stageNum}"
+            if ($stageNum -gt 999) {
+                throw "Cannot increment prerelease version beyond 999 for stage '$stageName'."
+            }
+            $prerelease = "${stageName}${delim}${stageNum}"
         }
     }
 
@@ -600,17 +642,19 @@ function Calculate-NextVersion {
     if ($RequestedStage -and ($effectiveBump -ne "Prerelease")) {
         $stageName = $RequestedStage.ToLower()
         $stageNum = 1
-        $prerelease = "${stageName}${stageNum}"
+        $delim = if ($CurrentObj.StageDelimiter) { $CurrentObj.StageDelimiter } else { "" }
+        $prerelease = "${stageName}${delim}${stageNum}"
     }
 
     return [PSCustomObject]@{
-        Major      = $major
-        Minor      = $minor
-        Patch      = $patch
-        Prerelease = $prerelease
-        Stage      = $stageName
-        StageNum   = $stageNum
-        IsValid    = $true
+        Major          = $major
+        Minor          = $minor
+        Patch          = $patch
+        Prerelease     = $prerelease
+        Stage          = $stageName
+        StageNum       = $stageNum
+        StageDelimiter = $delim
+        IsValid        = $true
     }
 }
 
@@ -959,8 +1003,17 @@ function Confirm-VersionBumpPrompt {
         }
     }
     elseif ($response -imatch '^\s*e(dit)?\s*$') {
-        $customVer = Read-Host "  Enter version to set (press ENTER to keep '$NewSemVer')"
-        if (-not [string]::IsNullOrWhiteSpace($customVer)) {
+        $validVerEntered = $false
+        while (-not $validVerEntered) {
+            $customVer = Read-Host "  Enter version to set (press ENTER to keep '$NewSemVer', 'q' to abort)"
+            if ([string]::IsNullOrWhiteSpace($customVer)) {
+                $validVerEntered = $true
+                break
+            }
+            if ($customVer -imatch '^\s*q(uit)?\s*$') {
+                Write-Host -ForegroundColor Yellow "Operation cancelled by user. No changes made."
+                return $null
+            }
             $updatedSemVer = $customVer.Trim() -replace '^[vV]', ''
             $parsedCustom = Parse-VersionString -Tag $updatedSemVer
             if ($parsedCustom.IsValid) {
@@ -969,10 +1022,18 @@ function Confirm-VersionBumpPrompt {
                 $NewFileVer = $nextFormatted.FileVersion
                 $ProposedTagName = $nextFormatted.TagName
                 $DiffPlans = Get-FileDiffPlan -BaseDir $ProjectRoot -SemVer $NewSemVer -FileVersion $NewFileVer
+                $validVerEntered = $true
             }
             else {
-                Write-Host -ForegroundColor Red "Invalid version format '$customVer'. Aborting."
-                return $null
+                if ($parsedCustom.HasBuildMetadata) {
+                    Write-Host ""
+                    Write-Host -ForegroundColor Yellow "Warning: Build metadata ('+...') is not permitted in project versions."
+                    Write-Host -ForegroundColor Yellow "TextoVista requires versions without build metadata for Windows installer compatibility."
+                }
+                else {
+                    Write-Host ""
+                    Write-Host -ForegroundColor Red "Error: $($parsedCustom.ValidationError)"
+                }
             }
         }
         $customMsg = Read-Host "  Enter commit message (press ENTER to keep '$FinalCommitMessage')"
@@ -1144,11 +1205,37 @@ function Invoke-TagOperations {
                 $confirmedTag = $true
             }
             elseif ($tagResp -imatch '^\s*e(dit)?\s*$') {
-                $customTagInput = Read-Host "  Enter tag name (press ENTER to keep '$ProposedTagName')"
-                if (-not [string]::IsNullOrWhiteSpace($customTagInput)) {
-                    $tagToApply = $customTagInput.Trim()
+                $validTagEntered = $false
+                while (-not $validTagEntered) {
+                    $customTagInput = Read-Host "  Enter tag name (press ENTER to keep '$ProposedTagName', 'q' to skip)"
+                    if ([string]::IsNullOrWhiteSpace($customTagInput)) {
+                        $validTagEntered = $true
+                        $confirmedTag = $true
+                        break
+                    }
+                    if ($customTagInput -imatch '^\s*q(uit)?\s*$') {
+                        Write-Host -ForegroundColor Yellow "Skipped Git tag creation."
+                        $confirmedTag = $false
+                        break
+                    }
+                    $candidateTag = $customTagInput.Trim()
+                    $parsedTag = Parse-VersionString -Tag $candidateTag
+                    if ($parsedTag.IsValid) {
+                        $tagToApply = if ($candidateTag -match '^[vV]') { $candidateTag } else { "v$candidateTag" }
+                        $validTagEntered = $true
+                        $confirmedTag = $true
+                    }
+                    else {
+                        if ($parsedTag.HasBuildMetadata) {
+                            Write-Host ""
+                            Write-Host -ForegroundColor Yellow "Warning: Build metadata ('+...') is not permitted in version tags."
+                        }
+                        else {
+                            Write-Host ""
+                            Write-Host -ForegroundColor Red "Error: $($parsedTag.ValidationError)"
+                        }
+                    }
                 }
-                $confirmedTag = $true
             }
             else {
                 Write-Host -ForegroundColor Yellow "Skipped Git tag creation."
@@ -1169,8 +1256,8 @@ function Invoke-TagOperations {
         }
 
         if ($confirmedTag) {
-            # Check CHANGELOG.md for semantic version tags (vX.Y.Z or vX.Y.Z-info1)
-            if ($tagToApply -match '^v\d+\.\d+\.\d+') {
+            # Check CHANGELOG.md for semantic version tags (vX.Y.Z or vX.Y.Z-prerelease)
+            if ($tagToApply -match '^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)') {
                 $changelogFile = Join-Path $ProjectRoot "CHANGELOG.md"
                 $changelogCheck = Test-ChangelogEntry -ChangelogPath $changelogFile -TagName $tagToApply
                 if (-not ($changelogCheck.HasEntry -and $changelogCheck.HasContent)) {
@@ -1305,11 +1392,41 @@ try {
         -ReleaseVersion:$ReleaseVersion `
         -CreateVersionTag:$CreateVersionTag
 
+    # 0. Validate -NewVersion if specified
+    if (-not [string]::IsNullOrWhiteSpace($NewVersion)) {
+        $parsedExplicit = Parse-VersionString -Tag $NewVersion
+        while (-not $parsedExplicit.IsValid) {
+            if ($parsedExplicit.HasBuildMetadata) {
+                Write-Host ""
+                Write-Host -ForegroundColor Yellow "Warning: Build metadata ('+...') is not permitted in project versions."
+                Write-Host -ForegroundColor Yellow "TextoVista requires versions without build metadata for Windows installer compatibility."
+            }
+            else {
+                Write-Host ""
+                Write-Host -ForegroundColor Red "Error: $($parsedExplicit.ValidationError)"
+            }
+
+            if ($NonInteractive) {
+                Write-Host -ForegroundColor Red "Invalid explicit version '$NewVersion' in non-interactive mode. Aborting."
+                exit 1
+            }
+
+            Write-Host -NoNewline -ForegroundColor Cyan "Enter a valid semantic version (e.g., '1.0.0', '1.0.0-rc.1', or '1.0.0-rc-1', or press ENTER/'q' to abort): "
+            $promptVer = Read-Host
+            if ([string]::IsNullOrWhiteSpace($promptVer) -or $promptVer -imatch '^\s*q(uit)?\s*$') {
+                Write-Host -ForegroundColor Yellow "Operation cancelled by user. Aborting."
+                exit 1
+            }
+            $NewVersion = $promptVer.Trim()
+            $parsedExplicit = Parse-VersionString -Tag $NewVersion
+        }
+    }
+
     # 1. Read Current Version from wails.json (Source of Truth)
     $sourceVersionStr = Get-CurrentVersionFromWails -Path $WailsConfigPath
     $currentObj = Parse-VersionString -Tag $sourceVersionStr
     if (-not $currentObj.IsValid) {
-        Write-Host -ForegroundColor Red "Error: Failed to parse version '$sourceVersionStr' from $WailsConfigPath as valid SemVer."
+        Write-Host -ForegroundColor Red "Error: Failed to parse version '$sourceVersionStr' from $WailsConfigPath as valid SemVer: $($currentObj.ValidationError)"
         exit 1
     }
     $currentFormatted = Format-BuildVersions $currentObj
