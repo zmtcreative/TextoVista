@@ -25,6 +25,7 @@ const runtimeMocks = vi.hoisted(() => ({
       runtimeHandlers.delete(eventName);
     }
   }),
+  BrowserOpenURL: vi.fn(),
 }));
 
 const appApiMocks = vi.hoisted(() => ({
@@ -35,6 +36,7 @@ const appApiMocks = vi.hoisted(() => ({
   GetCurrentMonospaceFont: vi.fn(),
   HasCurrentFile: vi.fn(),
   ReloadCurrentDocument: vi.fn(),
+  LoadAndDisplayMarkdown: vi.fn(),
   GetAlertCalloutStyles: vi.fn(),
   GetAvailableFonts: vi.fn(),
   GetAvailableMonospaceFonts: vi.fn(),
@@ -77,6 +79,8 @@ describe('App.vue', () => {
     appApiMocks.SetAdvancedFontDetection.mockResolvedValue(undefined);
     appApiMocks.SaveSettings.mockResolvedValue(undefined);
     appApiMocks.SaveSettingsSessionOnly.mockResolvedValue(undefined);
+    appApiMocks.LoadAndDisplayMarkdown.mockResolvedValue(undefined);
+    runtimeMocks.BrowserOpenURL.mockClear();
 
     mermaidMocks.initialize.mockClear();
     mermaidMocks.run.mockClear();
@@ -277,5 +281,77 @@ describe('App.vue', () => {
     expect(container.find('.app-toolbar').exists()).toBe(true);
     expect(container.find('header.app-header').exists()).toBe(true);
     expect(container.find('main.content-area').exists()).toBe(true);
+  });
+
+  it('intercepts internal anchor links and scrolls content-area while resetting outer scroll', async () => {
+    const wrapper = mount(App, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          teleport: true,
+        },
+      },
+    });
+    await waitForRuntimeHandlers();
+
+    runtimeHandlers.get('markdown-rendered')!({
+      title: 'TOC Test',
+      html: '<h2 id="top-sec">Top Section</h2><p><a id="toc-link" href="#target-sec">Jump</a></p><h2 id="target-sec">Target Section</h2>',
+      date: '2026-10-18',
+    });
+    await wrapper.vm.$nextTick();
+
+    const contentArea = wrapper.find('.content-area').element as HTMLElement;
+    const scrollToSpy = vi.fn();
+    contentArea.scrollTo = scrollToSpy;
+
+    const link = wrapper.get('#toc-link');
+    await link.trigger('click');
+
+    expect(scrollToSpy).toHaveBeenCalled();
+  });
+
+  it('loads relative markdown links via LoadAndDisplayMarkdown', async () => {
+    const wrapper = mount(App, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          teleport: true,
+        },
+      },
+    });
+    await waitForRuntimeHandlers();
+
+    runtimeHandlers.get('markdown-rendered')!({
+      title: 'Doc Links Test',
+      html: '<p><a id="doc-link" href="./guide.md#section-1">Guide</a></p>',
+      date: '2026-10-18',
+    });
+    await wrapper.vm.$nextTick();
+
+    await wrapper.get('#doc-link').trigger('click');
+    expect(appApiMocks.LoadAndDisplayMarkdown).toHaveBeenCalledWith('./guide.md');
+  });
+
+  it('opens external links via BrowserOpenURL', async () => {
+    const wrapper = mount(App, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          teleport: true,
+        },
+      },
+    });
+    await waitForRuntimeHandlers();
+
+    runtimeHandlers.get('markdown-rendered')!({
+      title: 'External Links Test',
+      html: '<p><a id="ext-link" href="https://example.com/docs">External</a></p>',
+      date: '2026-10-18',
+    });
+    await wrapper.vm.$nextTick();
+
+    await wrapper.get('#ext-link').trigger('click');
+    expect(runtimeMocks.BrowserOpenURL).toHaveBeenCalledWith('https://example.com/docs');
   });
 });

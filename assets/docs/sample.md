@@ -497,7 +497,7 @@ TextoVista enforces robust defense-in-depth sanitization on both the Go backend 
 ### Links
 
 - Internal Document Navigation: [Return to Table of Contents](#table-of-contents)
-- Relative Project Links: [View README.md](../README.md)
+- Relative Project Links: [View README.md](/README.md)
 - External Safe Links: [CommonMark Specification](https://spec.commonmark.org/)
 
 ### Figures & Captions

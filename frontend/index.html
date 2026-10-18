@@ -16,25 +16,6 @@
 <body>
 <div id="app"></div>
 <script src="./src/main.ts" type="module"></script>
-<script type="text/javascript">
-    // Open all links externally
-    document.body.addEventListener('click', function(e) {
-    if (e.target && e.target.nodeName == 'A' && e.target.href) {
-        const url = e.target.href;
-        // const regex = /^(?:https?|ftps?|file):\/\//i;
-        if (
-            !url.startsWith('http://#') &&
-            !url.startsWith('file://') &&
-            !url.startsWith('http://wails.localhost:') &&
-            !url.startsWith('#')
-        ) {
-            e.preventDefault();
-            window.runtime.BrowserOpenURL(url);
-        }
-    }
-    });
-
-</script>
 </body>
 </html>
 
