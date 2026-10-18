@@ -58,6 +58,7 @@ var (
 const (
 	autoRefreshDebounce = 250 * time.Millisecond
 	maxDocumentSize     = 20 * 1024 * 1024 // 20 MB ceiling
+	maxDocHistorySize   = 100
 )
 
 type appTimer interface {
@@ -122,6 +123,7 @@ type App struct {
 	autoRefreshTimer appTimer
 	watchCtx         context.Context
 	watchCancel      context.CancelFunc
+	docHistory       []string
 }
 
 // NewApp creates a new App application struct
@@ -238,6 +240,8 @@ func (a *App) domReady(ctx context.Context) {
 		FrontmatterHTML: "",
 	}
 
+	a.clearDocHistory()
+
 	if a.currentFile != "" {
 		log.Printf("##> LOG: Loading initial file from command line: %s", a.currentFile)
 		err := a.fileManager.LoadFile(a.currentFile)
@@ -284,8 +288,11 @@ func (a *App) menu() *menu.Menu {
 		a.watchMu.Unlock()
 		if fm != nil {
 			fm.OpenFileMenuHandler(data, &selectedFile)
-			if selectedFile != "" && selectedFile != previousFile {
-				a.setCurrentFile(selectedFile)
+			if selectedFile != "" {
+				if selectedFile != previousFile {
+					a.setCurrentFile(selectedFile)
+				}
+				a.clearDocHistory()
 			}
 		}
 	})
@@ -446,13 +453,83 @@ func (a *App) LoadAndDisplayMarkdown(filePath string) error {
 
 	a.watchMu.Lock()
 	processor := a.documentProcessor
+	prevFile := a.currentFile
 	a.watchMu.Unlock()
 
 	err = appLoadMarkdown(processor, validatedPath)
 	if err == nil {
+		if prevFile != "" && prevFile != validatedPath {
+			a.pushDocHistory(prevFile)
+		}
 		a.setCurrentFile(validatedPath)
 	}
 	return err
+}
+
+func (a *App) pushDocHistory(filePath string) {
+	if filePath == "" {
+		return
+	}
+	a.watchMu.Lock()
+	cleanPath := filepath.Clean(filePath)
+	if n := len(a.docHistory); n > 0 && a.docHistory[n-1] == cleanPath {
+		a.watchMu.Unlock()
+		return
+	}
+	a.docHistory = append(a.docHistory, cleanPath)
+	if len(a.docHistory) > maxDocHistorySize {
+		a.docHistory = a.docHistory[1:]
+	}
+	canGoBack := len(a.docHistory) > 0
+	ctx := a.ctx
+	a.watchMu.Unlock()
+
+	if ctx != nil {
+		appEventsEmit(ctx, "history-state-changed", map[string]any{"canGoBack": canGoBack})
+	}
+}
+
+func (a *App) clearDocHistory() {
+	a.watchMu.Lock()
+	hadItems := len(a.docHistory) > 0
+	a.docHistory = nil
+	ctx := a.ctx
+	a.watchMu.Unlock()
+
+	if hadItems && ctx != nil {
+		appEventsEmit(ctx, "history-state-changed", map[string]any{"canGoBack": false})
+	}
+}
+
+// CanGoBack returns true if there is at least one previous document on the navigation stack
+func (a *App) CanGoBack() bool {
+	a.watchMu.Lock()
+	defer a.watchMu.Unlock()
+	return len(a.docHistory) > 0
+}
+
+// NavigateBack pops the top document from the history stack and opens it
+func (a *App) NavigateBack() error {
+	a.watchMu.Lock()
+	if len(a.docHistory) == 0 {
+		a.watchMu.Unlock()
+		return fmt.Errorf("no previous document in navigation history")
+	}
+	targetPath := a.docHistory[len(a.docHistory)-1]
+	a.docHistory = a.docHistory[:len(a.docHistory)-1]
+	canGoBack := len(a.docHistory) > 0
+	processor := a.documentProcessor
+	ctx := a.ctx
+	a.watchMu.Unlock()
+
+	if err := appLoadMarkdown(processor, targetPath); err != nil {
+		return fmt.Errorf("failed to open previous document %s: %w", targetPath, err)
+	}
+	a.setCurrentFile(targetPath)
+	if ctx != nil {
+		appEventsEmit(ctx, "history-state-changed", map[string]any{"canGoBack": canGoBack})
+	}
+	return nil
 }
 
 // ReloadCurrentDocument reloads and regenerates the currently opened markdown document

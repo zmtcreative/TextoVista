@@ -2,8 +2,10 @@
   <div class="app-container">
     <!-- Application Toolbar -->
     <Toolbar
+      :canGoBack="canGoBack"
       :currentTheme="currentTheme"
       :showFrontmatter="showFrontmatter"
+      @back="navigateBack"
       @refresh="refreshCurrentDocument"
       @toggleTheme="toggleTheme"
       @toggleFrontmatter="toggleFrontmatter"
@@ -52,7 +54,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { EventsOn, EventsOff, BrowserOpenURL } from '../wailsjs/runtime/runtime';
-import { GetTheme, SetTheme, GetCurrentFont, GetCurrentMonospaceFont, HasCurrentFile, ReloadCurrentDocument, LoadAndDisplayMarkdown } from '../wailsjs/go/main/App';
+import { GetTheme, SetTheme, GetCurrentFont, GetCurrentMonospaceFont, HasCurrentFile, ReloadCurrentDocument, LoadAndDisplayMarkdown, CanGoBack, NavigateBack } from '../wailsjs/go/main/App';
 import Settings from './components/Settings.vue';
 import Help from './components/Help.vue';
 import Toolbar from './components/Toolbar.vue';
@@ -63,6 +65,16 @@ import katex from 'katex';
 import DOMPurify from 'dompurify';
 
 const contentAreaRef = ref<HTMLElement | null>(null);
+const canGoBack = ref(false);
+
+async function navigateBack() {
+  try {
+    await NavigateBack();
+  } catch (err: unknown) {
+    console.error('Failed to navigate back:', err);
+    errorMessage.value = `Failed to navigate back: ${err}`;
+  }
+}
 
 // Guard function to ensure ancestor containers and window root are never scrolled
 function resetOuterScroll() {
@@ -611,6 +623,17 @@ onMounted(async () => {
     openSettingsDialog();
   });
 
+  // Check and listen for document history state for back button navigation
+  CanGoBack().then((res) => {
+    canGoBack.value = Boolean(res);
+  }).catch(() => {
+    canGoBack.value = false;
+  });
+
+  EventsOn('history-state-changed', (data: { canGoBack: boolean }) => {
+    canGoBack.value = Boolean(data?.canGoBack);
+  });
+
   // Set up listeners for robust internal anchor navigation and window scroll prevention
   window.addEventListener('scroll', resetOuterScroll, { passive: true });
   window.addEventListener('hashchange', onHashChange);
@@ -633,6 +656,7 @@ onUnmounted(() => {
   EventsOff('save-as-pdf');
   EventsOff('show-help');
   EventsOff('show-settings');
+  EventsOff('history-state-changed');
 });
 
 </script>

@@ -44,6 +44,8 @@ const appApiMocks = vi.hoisted(() => ({
   SetAdvancedFontDetection: vi.fn(),
   SaveSettings: vi.fn(),
   SaveSettingsSessionOnly: vi.fn(),
+  CanGoBack: vi.fn(),
+  NavigateBack: vi.fn(),
 }));
 
 const mermaidMocks = vi.hoisted(() => ({
@@ -80,6 +82,8 @@ describe('App.vue', () => {
     appApiMocks.SaveSettings.mockResolvedValue(undefined);
     appApiMocks.SaveSettingsSessionOnly.mockResolvedValue(undefined);
     appApiMocks.LoadAndDisplayMarkdown.mockResolvedValue(undefined);
+    appApiMocks.CanGoBack.mockResolvedValue(false);
+    appApiMocks.NavigateBack.mockResolvedValue(undefined);
     runtimeMocks.BrowserOpenURL.mockClear();
 
     mermaidMocks.initialize.mockClear();
@@ -462,5 +466,38 @@ describe('App.vue', () => {
     await wrapper.get('#js-link').trigger('click');
     expect(runtimeMocks.BrowserOpenURL).not.toHaveBeenCalled();
     expect(appApiMocks.LoadAndDisplayMarkdown).not.toHaveBeenCalled();
+  });
+
+  it('toggles back button based on history-state-changed event and navigates back', async () => {
+    const wrapper = mount(App, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          teleport: true,
+        },
+      },
+    });
+    await waitForRuntimeHandlers();
+
+    // Initially canGoBack is false, back button should not exist
+    expect(wrapper.find('.back-btn').exists()).toBe(false);
+
+    // Simulate history-state-changed with canGoBack: true
+    const historyChanged = runtimeHandlers.get('history-state-changed');
+    expect(historyChanged).toBeDefined();
+    historyChanged!({ canGoBack: true });
+    await wrapper.vm.$nextTick();
+
+    // Back button should now be visible
+    expect(wrapper.find('.back-btn').exists()).toBe(true);
+
+    // Click back button to navigate back
+    await wrapper.get('.back-btn').trigger('click');
+    expect(appApiMocks.NavigateBack).toHaveBeenCalledTimes(1);
+
+    // Simulate history-state-changed with canGoBack: false
+    historyChanged!({ canGoBack: false });
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('.back-btn').exists()).toBe(false);
   });
 });

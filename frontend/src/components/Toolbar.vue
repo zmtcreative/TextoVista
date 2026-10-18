@@ -9,6 +9,19 @@
       <!-- Right side - theme toggle and other action items -->
       <div class="toolbar-right">
         <button
+          v-if="canGoBack"
+          @click="$emit('back')"
+          class="toolbar-btn back-btn"
+          title="Back to previous document"
+        >
+          <Icon
+            name="arrow-left"
+            :size="18"
+            class="toolbar-icon"
+          />
+        </button>
+
+        <button
           @click="$emit('refresh')"
           class="toolbar-btn refresh-btn"
           title="Refresh"
@@ -61,10 +74,15 @@ import Icon from './Icon.vue'
 interface Props {
   currentTheme: 'light' | 'dark'
   showFrontmatter: boolean
+  canGoBack?: boolean
 }
 
-defineProps<Props>()
+withDefaults(defineProps<Props>(), {
+  canGoBack: false
+})
+
 defineEmits<{
+  back: []
   refresh: []
   toggleTheme: []
   toggleFrontmatter: []
