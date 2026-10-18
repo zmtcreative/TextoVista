@@ -6,19 +6,28 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
-This update enhances release automation tooling and refines the Linux build and packaging pipeline alongside corresponding developer documentation. A new automated changelog generation script (`scripts/Update-Changelog.ps1`) has been introduced alongside improvements to the version management workflow (`scripts/Set-Version.ps1`), while corrections have been applied to the Wails build script, GitHub Actions CI workflow, and architectural guides to ensure reliable Linux distribution packaging and accurate system documentation.
+## v0.5.3 - 2027-10-18
+
+This release marks the official rebranding of the application to **TextoVista** and delivers substantial updates across the runtime environment, dependencies, release automation, Linux packaging, and documentation.
+
+Core language and framework requirements have been modernized to Go 1.27.0, Node.js >=22.0.0, and Wails v2.16.0. Markdown and diagram processing have been updated to use the official `d2lang/d2` rendering library alongside the latest Goldmark and syntax highlighting packages. In addition, release management has been overhauled with modular PowerShell 7 version-bumping (`scripts/Set-Version.ps1`) and automated changelog generation (`scripts/Update-Changelog.ps1`) scripts, while Linux build pipelines and GitHub Actions CI workflows have been refined for reliable cross-platform distribution.
 
 > [!WARNING]
 > This is still **Beta** software! It should be functional for general usage but likely still has bugs, and development is still ongoing.
 
 ### CHANGES
 
+- Rebrand: Rebranded application name to **TextoVista** and updated the Go module (`texto-vista`), binary names, NSIS installer configuration, UI references, and icon assets.
 - Add: Added automated changelog generation and update script (`scripts/Update-Changelog.ps1`).
-- Scripts: Enhanced version management script (`scripts/Set-Version.ps1`) to streamline release preparation and version bumping.
-- Scripts: Refined `scripts/build-wails-app.sh` for improved Linux application building and archive generation.
-- Fix: Corrected Linux packaging configuration across build scripts and CI workflow definitions.
-- CI/CD: Updated `.github/workflows/build.yml` to align Linux build and artifact packaging steps.
-- Docs: Updated `docs/ARCHITECTURE.md` and `docs/_DEV_Linux-Packaging-tar-gz.md` to reflect current Linux packaging procedures and architectural details.
+- Scripts: Replaced `scripts/New-GitTag.ps1` with a modularized `scripts/Set-Version.ps1` featuring interactive tag collision resolution, clean-repository enforcement, and `-CurrentVersion` tagging support.
+- Scripts: Updated WSL/Linux prerequisite validation (`scripts/verify-wsl-linux.sh`) and application build scripts (`scripts/build-wails-app.sh`) for improved Linux archive packaging.
+- Update: Upgraded language and runtime requirements to Go 1.27.0 and Node.js >=22.0.0.
+- Update: Upgraded desktop application framework to Wails v2.16.0 and updated HTML sanitization handling (`internal/gm-ext/htmlsanitize/htmlsanitize.go`).
+- Update: Migrated D2 diagram rendering from `oss.terrastruct.com/d2` to `github.com/d2lang/d2` v0.9.0 and updated `goldmark-d2`.
+- Update: Upgraded core Go dependencies (`goldmark` v1.8.6, `chroma/v2` v2.27.0, `gjson` v1.20.0, `regexp2/v2` v2.2.1, and `golang.org/x/*` packages).
+- Update: Upgraded frontend dependencies, TypeScript, Vite tooling, and Playwright/Vitest test suites.
+- Fix: Resolved Wails v2.16.0 version alignment and Linux packaging configuration across build scripts and GitHub Actions workflows.
+- Docs: Updated system architecture (`docs/ARCHITECTURE.md`), WSL setup, and Linux packaging guides.
 
 ## v0.5.3 - 2026-10-18
 
