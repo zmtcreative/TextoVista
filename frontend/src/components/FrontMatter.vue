@@ -32,6 +32,7 @@ const sanitizedFrontmatterHTML = computed(() => {
 
 <style scoped>
 .frontmatter-section {
+  flex-shrink: 0;
   position: sticky;
   top: 28px; /* Position below the toolbar (28px height) */
   left: 0;

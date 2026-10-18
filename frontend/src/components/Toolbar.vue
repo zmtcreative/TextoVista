@@ -73,6 +73,7 @@ defineEmits<{
 
 <style scoped>
 .app-toolbar {
+  flex-shrink: 0;
   position: sticky;
   top: 0;
   left: 0;

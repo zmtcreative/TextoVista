@@ -260,4 +260,22 @@ describe('App.vue', () => {
       expect(wrapper.get('.error-message').text()).toContain('reload failed');
     });
   });
+
+  it('renders application layout with proper container hierarchy for scrolling', async () => {
+    const wrapper = mount(App, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          teleport: true,
+        },
+      },
+    });
+    await waitForRuntimeHandlers();
+
+    const container = wrapper.find('.app-container');
+    expect(container.exists()).toBe(true);
+    expect(container.find('.app-toolbar').exists()).toBe(true);
+    expect(container.find('header.app-header').exists()).toBe(true);
+    expect(container.find('main.content-area').exists()).toBe(true);
+  });
 });

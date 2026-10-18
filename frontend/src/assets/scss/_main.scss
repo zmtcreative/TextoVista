@@ -8,17 +8,32 @@
 // Base Styles
 // ============================================================================
 
+html,
+body {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
 html {
     text-align: left;
     --app-max-width: #{$view-max-width-px};
 }
 
-body[class] {
-    margin: 0;
+body {
+    position: relative;
     background-color: var(--bg-color);
     color: var(--text-color);
     transition: background-color 0.3s, color 0.3s;
     font-size: var(--font-size);
+}
+
+.mermaidTooltip {
+    top: 0;
+    left: 0;
+    pointer-events: none;
 }
 
 // ============================================================================
