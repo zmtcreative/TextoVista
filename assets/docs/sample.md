@@ -510,7 +510,7 @@ The figure extension converts captioned images into semantic `<figure>` and `<fi
 
 Both relative local paths and compact embedded base64 data URIs are supported:
 
-![TextoVista Design](../assets/images/danger-square.svg "Sample Vector Asset")
+![TextoVista Design](danger-square.svg "Sample Vector Asset")
 
 Sample compact 16x16 PNG Data URI:
 
