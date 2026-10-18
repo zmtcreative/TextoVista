@@ -6,13 +6,18 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
-This update refines the Linux build and packaging pipeline alongside corresponding developer documentation. Corrections have been applied to the Wails build script, GitHub Actions CI workflow, and architectural guides to ensure reliable Linux distribution packaging and accurate system documentation.
+This update enhances release automation tooling and refines the Linux build and packaging pipeline alongside corresponding developer documentation. A new automated changelog generation script (`scripts/Update-Changelog.ps1`) has been introduced alongside improvements to the version management workflow (`scripts/Set-Version.ps1`), while corrections have been applied to the Wails build script, GitHub Actions CI workflow, and architectural guides to ensure reliable Linux distribution packaging and accurate system documentation.
+
+> [!WARNING]
+> This is still **Beta** software! It should be functional for general usage but likely still has bugs, and development is still ongoing.
 
 ### CHANGES
 
+- Add: Added automated changelog generation and update script (`scripts/Update-Changelog.ps1`).
+- Scripts: Enhanced version management script (`scripts/Set-Version.ps1`) to streamline release preparation and version bumping.
+- Scripts: Refined `scripts/build-wails-app.sh` for improved Linux application building and archive generation.
 - Fix: Corrected Linux packaging configuration across build scripts and CI workflow definitions.
 - CI/CD: Updated `.github/workflows/build.yml` to align Linux build and artifact packaging steps.
-- Scripts: Refined `scripts/build-wails-app.sh` for improved Linux application building and archive generation.
 - Docs: Updated `docs/ARCHITECTURE.md` and `docs/_DEV_Linux-Packaging-tar-gz.md` to reflect current Linux packaging procedures and architectural details.
 
 ## v0.5.3 - 2026-10-18
