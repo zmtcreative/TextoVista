@@ -186,10 +186,10 @@ function handleLinkClick(e: MouseEvent) {
     }
   } catch (_) {}
 
-  // 3. Relative markdown file links (e.g. "other.md", "./docs/guide.markdown")
-  const isRelative = !/^[a-z][a-z0-9+.-]*:/i.test(rawHref) && !rawHref.startsWith('//');
+  // 3. Markdown file links (relative links, UNC paths, and file:// URLs)
+  const isHttpOrRemote = /^(https?|mailto|tel|ftp):/i.test(rawHref);
   const isMarkdown = /\.md($|\?|#)/i.test(rawHref) || /\.markdown($|\?|#)/i.test(rawHref);
-  if (isRelative && isMarkdown) {
+  if (!isHttpOrRemote && isMarkdown) {
     e.preventDefault();
     const [filePath, targetHash] = rawHref.split('#');
     if (filePath) {

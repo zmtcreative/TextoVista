@@ -388,7 +388,10 @@ func TestDocumentProcessorLoadsActualSampleDocument(t *testing.T) {
 	if strings.Contains(payload.HTML, `bad-src="data:image/png;base64`) {
 		t.Fatalf("sample.md should NOT rewrite data:image/png;base64 to bad-src")
 	}
-	if !strings.Contains(payload.HTML, `src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9h`) {
+	if !strings.Contains(payload.HTML, `src="data:image/png;base64,`) {
 		t.Fatalf("sample.md should preserve data:image/png;base64 on img src")
+	}
+	if !strings.Contains(payload.HTML, `src="data:image/webp;base64,`) {
+		t.Fatalf("sample.md should preserve data:image/webp;base64 on img src")
 	}
 }

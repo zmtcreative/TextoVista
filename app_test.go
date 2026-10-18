@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	internalapp "texto-vista/internal/app"
 	"texto-vista/internal/cli"
 )
 
@@ -376,9 +377,29 @@ func TestAppSaveSettingsNilSafety(t *testing.T) {
 func TestAppLoadAndDisplayMarkdownValidation(t *testing.T) {
 	app := NewApp(&cli.CliArgs{})
 
+	fakeWatcher := newFakeDocumentWatcher()
+	originalNewWatcher := newDocumentWatcher
+	newDocumentWatcher = func() (documentWatcher, error) {
+		return fakeWatcher, nil
+	}
+	originalLoadMarkdown := appLoadMarkdown
+	appLoadMarkdown = func(_ *internalapp.DocumentProcessor, path string) error {
+		return nil
+	}
+	t.Cleanup(func() {
+		app.setCurrentFile("")
+		newDocumentWatcher = originalNewWatcher
+		appLoadMarkdown = originalLoadMarkdown
+	})
+
 	// Test empty path
 	if err := app.LoadAndDisplayMarkdown(""); err == nil {
 		t.Fatal("LoadAndDisplayMarkdown(\"\") expected error, got nil")
+	}
+
+	// Test non-markdown file extension rejection
+	if err := app.LoadAndDisplayMarkdown("notes.txt"); err == nil || !strings.Contains(err.Error(), "only Markdown") {
+		t.Fatalf("LoadAndDisplayMarkdown(non-markdown) expected only Markdown error, got: %v", err)
 	}
 
 	// Test non-existent file
@@ -392,7 +413,7 @@ func TestAppLoadAndDisplayMarkdownValidation(t *testing.T) {
 		t.Fatal("LoadAndDisplayMarkdown(directory) expected error, got nil")
 	}
 
-	// Test path escaping parent directory
+	// Test relative path traversal outside parent directory to another .md file
 	subDir := filepath.Join(tempDir, "sub")
 	if err := os.Mkdir(subDir, 0755); err != nil {
 		t.Fatal(err)
@@ -401,10 +422,27 @@ func TestAppLoadAndDisplayMarkdownValidation(t *testing.T) {
 	if err := os.WriteFile(baseFile, []byte("# Base"), 0644); err != nil {
 		t.Fatal(err)
 	}
+	outsideMD := filepath.Join(tempDir, "outside.md")
+	if err := os.WriteFile(outsideMD, []byte("# Outside"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	outsideTxt := filepath.Join(tempDir, "outside.txt")
+	if err := os.WriteFile(outsideTxt, []byte("secret"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
 	app.setCurrentFile(baseFile)
 
-	// Try relative path escaping parent directory
-	if err := app.LoadAndDisplayMarkdown("../../outside.md"); err == nil {
-		t.Fatal("LoadAndDisplayMarkdown(path escaping baseDir) expected error, got nil")
+	// Relative path to outside.md should be permitted and loaded
+	if err := app.LoadAndDisplayMarkdown("../outside.md"); err != nil {
+		t.Fatalf("LoadAndDisplayMarkdown(relative outside .md) unexpected error: %v", err)
+	}
+	if app.GetCurrentFile() != outsideMD {
+		t.Fatalf("GetCurrentFile() = %q, want %q", app.GetCurrentFile(), outsideMD)
+	}
+
+	// Relative path to non-markdown file (outside.txt) should be rejected
+	if err := app.LoadAndDisplayMarkdown("../outside.txt"); err == nil || !strings.Contains(err.Error(), "only Markdown") {
+		t.Fatalf("LoadAndDisplayMarkdown(relative non-markdown) expected only Markdown error, got: %v", err)
 	}
 }

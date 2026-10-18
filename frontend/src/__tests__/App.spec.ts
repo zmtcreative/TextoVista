@@ -391,6 +391,31 @@ describe('App.vue', () => {
     expect(appApiMocks.LoadAndDisplayMarkdown).toHaveBeenCalledWith('./guide.md');
   });
 
+  it('loads traversing relative markdown links and UNC paths via LoadAndDisplayMarkdown', async () => {
+    const wrapper = mount(App, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          teleport: true,
+        },
+      },
+    });
+    await waitForRuntimeHandlers();
+
+    runtimeHandlers.get('markdown-rendered')!({
+      title: 'Doc Links Test 2',
+      html: '<p><a id="traverse-link" href="../../README.md">Readme</a><a id="unc-link" href="\\\\server\\share\\doc.markdown">UNC</a></p>',
+      date: '2026-10-18',
+    });
+    await wrapper.vm.$nextTick();
+
+    await wrapper.get('#traverse-link').trigger('click');
+    expect(appApiMocks.LoadAndDisplayMarkdown).toHaveBeenCalledWith('../../README.md');
+
+    await wrapper.get('#unc-link').trigger('click');
+    expect(appApiMocks.LoadAndDisplayMarkdown).toHaveBeenCalledWith('\\\\server\\share\\doc.markdown');
+  });
+
   it('opens external links via BrowserOpenURL', async () => {
     const wrapper = mount(App, {
       attachTo: document.body,

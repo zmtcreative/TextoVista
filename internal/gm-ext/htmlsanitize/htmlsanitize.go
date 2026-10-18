@@ -55,7 +55,7 @@ var allowedExts = []string{
 	// Archive types
 	".zip", ".rar", ".7z", ".tar", ".gz", "tgz", ".bz2",
 	// Plain text Document types
-	".css", "scss", ".htm", ".html", ".md", ".txt", ".xml",
+	".css", "scss", ".htm", ".html", ".md", ".markdown", ".txt", ".xml",
 	// Non-text Document types
 	".docx", ".xlsx", ".pptx", ".pdf",
 	// Images

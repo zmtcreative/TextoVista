@@ -38,6 +38,9 @@ var (
 	appEventsEmit   = wailsruntime.EventsEmit
 	appQuit         = wailsruntime.Quit
 	appLoadMarkdown = func(processor *app.DocumentProcessor, filePath string) error {
+		if processor == nil {
+			return fmt.Errorf("document processor not initialized")
+		}
 		return processor.LoadAndDisplayMarkdown(filePath)
 	}
 	newDocumentWatcher = func() (documentWatcher, error) {
@@ -345,10 +348,34 @@ func (a *App) resolveAndValidatePath(filePath string) (string, error) {
 		return "", fmt.Errorf("file path cannot be empty")
 	}
 
-	cleanInput := filepath.Clean(trimmed)
+	// Normalize file:// protocol if present
+	if strings.HasPrefix(strings.ToLower(trimmed), "file://") {
+		trimmed = strings.TrimPrefix(trimmed, "file://")
+		trimmed = strings.TrimPrefix(trimmed, "FILE://")
+		// On Windows, file:///C:/path/to/file.md -> C:/path/to/file.md
+		if strings.HasPrefix(trimmed, "/") && len(trimmed) > 2 && trimmed[2] == ':' {
+			trimmed = strings.TrimPrefix(trimmed, "/")
+		} else if !strings.HasPrefix(trimmed, "/") && !strings.HasPrefix(trimmed, "\\") {
+			// file://server/share/file.md -> \\server\share\file.md
+			trimmed = `\\` + trimmed
+		}
+	}
+
+	// Strip URL query parameters or fragments if passed (e.g., "doc.md#section-1" or "doc.md?v=1")
+	cleanInput := trimmed
+	if idx := strings.IndexAny(cleanInput, "?#"); idx != -1 {
+		cleanInput = cleanInput[:idx]
+	}
+
+	// Normalize forward-slash UNC paths (//server/share -> \\server\share)
+	if strings.HasPrefix(cleanInput, "//") {
+		cleanInput = `\\` + cleanInput[2:]
+	}
+
+	cleanInput = filepath.Clean(cleanInput)
 	var targetPath string
 
-	if filepath.IsAbs(cleanInput) {
+	if filepath.IsAbs(cleanInput) || strings.HasPrefix(cleanInput, `\\`) {
 		targetPath = cleanInput
 	} else {
 		// Resolve relative path against the parent directory of the current file
@@ -362,15 +389,16 @@ func (a *App) resolveAndValidatePath(filePath string) (string, error) {
 		} else {
 			baseDir := filepath.Dir(filepath.Clean(cur))
 			targetPath = filepath.Join(baseDir, cleanInput)
-			// Restrict traversal relative to the current file's parent directory
-			rel, err := filepath.Rel(baseDir, targetPath)
-			if err != nil || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || rel == ".." {
-				return "", fmt.Errorf("access denied: path escapes parent directory")
-			}
 		}
 	}
 
 	cleanTarget := filepath.Clean(targetPath)
+
+	// Strict extension whitelist: only permit .md and .markdown files (including on Network/UNC paths)
+	ext := strings.ToLower(filepath.Ext(cleanTarget))
+	if ext != ".md" && ext != ".markdown" {
+		return "", fmt.Errorf("access denied: only Markdown (.md, .markdown) files may be opened: %s", cleanTarget)
+	}
 
 	info, err := os.Stat(cleanTarget)
 	if err != nil {
