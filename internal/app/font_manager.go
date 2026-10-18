@@ -5,17 +5,19 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 )
 
 // FontManager handles system font enumeration
 type FontManager struct {
-	availableFonts []string
+	mu                  sync.RWMutex
+	availableFonts      []string
 	knownMonospaceFonts map[string]bool
-	configManager *ConfigManager
+	configManager       *ConfigManager
 	// Caching fields for performance
-	fontCache map[string]bool  // Cache for font existence checks
-	monoCache map[string]bool  // Cache for monospace detection results
-	systemFontCache []string   // Cache for system fonts
+	fontCache           map[string]bool  // Cache for font existence checks
+	monoCache           map[string]bool  // Cache for monospace detection results
+	systemFontCache     []string         // Cache for system fonts
 }
 
 // NewFontManager creates a new FontManager
@@ -54,9 +56,14 @@ func NewFontManager(configManager *ConfigManager) *FontManager {
 // GetSystemFonts returns a list of available system fonts
 func (fm *FontManager) GetSystemFonts() []string {
 	// Return cached result if available
+	fm.mu.RLock()
 	if len(fm.systemFontCache) > 0 {
-		return fm.systemFontCache
+		result := make([]string, len(fm.systemFontCache))
+		copy(result, fm.systemFontCache)
+		fm.mu.RUnlock()
+		return result
 	}
+	fm.mu.RUnlock()
 
 	var result []string
 	switch runtime.GOOS {
@@ -70,9 +77,13 @@ func (fm *FontManager) GetSystemFonts() []string {
 		result = fm.getDefaultFonts()
 	}
 
-	// Cache the result
+	// Cache the result under lock
+	fm.mu.Lock()
 	fm.systemFontCache = result
-	return result
+	out := make([]string, len(result))
+	copy(out, result)
+	fm.mu.Unlock()
+	return out
 }
 
 // getWindowsFonts retrieves fonts on Windows
@@ -207,11 +218,8 @@ func (fm *FontManager) GetFontFamilyName(fontString string) string {
 
 // ValidateFontFamily checks if a font family is in the available list
 func (fm *FontManager) ValidateFontFamily(fontFamily string) bool {
-	if len(fm.availableFonts) == 0 {
-		fm.availableFonts = fm.GetSystemFonts()
-	}
-
-	for _, font := range fm.availableFonts {
+	fonts := fm.GetSystemFonts()
+	for _, font := range fonts {
 		if strings.EqualFold(fm.GetFontFamilyName(font), fm.GetFontFamilyName(fontFamily)) {
 			return true
 		}
@@ -260,8 +268,11 @@ func (fm *FontManager) AdvancedMonospaceDetection() []string {
 			continue
 		}
 
-		// Check cache first
-		if cached, exists := fm.monoCache[cleanName]; exists {
+		// Check cache first under read lock
+		fm.mu.RLock()
+		cached, exists := fm.monoCache[cleanName]
+		fm.mu.RUnlock()
+		if exists {
 			if cached {
 				advancedMonospaceFonts = append(advancedMonospaceFonts, font)
 			}
@@ -276,8 +287,10 @@ func (fm *FontManager) AdvancedMonospaceDetection() []string {
 			isMonospace = fm.detectMonospaceByFontPathOptimized(cleanName)
 		}
 
-		// Cache the result
+		// Cache the result under write lock
+		fm.mu.Lock()
 		fm.monoCache[cleanName] = isMonospace
+		fm.mu.Unlock()
 
 		if isMonospace {
 			advancedMonospaceFonts = append(advancedMonospaceFonts, font)
@@ -418,15 +431,20 @@ func (fm *FontManager) generateLimitedFontFilenames(fontName string, ext string)
 
 // fileExistsWithCache checks file existence with caching
 func (fm *FontManager) fileExistsWithCache(filename string) bool {
-	if cached, exists := fm.fontCache[filename]; exists {
+	fm.mu.RLock()
+	cached, exists := fm.fontCache[filename]
+	fm.mu.RUnlock()
+	if exists {
 		return cached
 	}
 
 	_, err := os.Stat(filename)
 	result := !os.IsNotExist(err)
 
-	// Cache the result
+	// Cache the result under write lock
+	fm.mu.Lock()
 	fm.fontCache[filename] = result
+	fm.mu.Unlock()
 	return result
 }
 

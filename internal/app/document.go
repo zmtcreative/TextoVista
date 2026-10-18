@@ -3,8 +3,10 @@ package app
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"html"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -29,10 +31,11 @@ var (
 
 // MarkdownRenderData contains all data needed for the markdown-rendered event
 type MarkdownRenderData struct {
-	HTML        string `json:"html"`
-	Title       string `json:"title"`
-	Date        string `json:"date"`
+	HTML            string `json:"html"`
+	Title           string `json:"title"`
+	Date            string `json:"date"`
 	FrontmatterHTML string `json:"frontmatter_html,omitempty"`
+	Sanitize        bool   `json:"sanitize"`
 	// Future fields can be added here without breaking existing functionality
 	// Type     string `json:"type,omitempty"`
 	// Metadata map[string]string `json:"metadata,omitempty"`
@@ -140,12 +143,16 @@ func (dp *DocumentProcessor) LoadAndDisplayMarkdown(filePath string) error {
         }
     }
 
+    // Resolve local relative image references relative to document directory
+    htmlContent = resolveLocalImageSources(htmlContent, filepath.Dir(filePath))
+
     // Create structured data for the frontend
     renderData := MarkdownRenderData{
-        HTML:        string(htmlContent),
-        Title:       docTitle,
-        Date:        docDate,
+        HTML:            string(htmlContent),
+        Title:           docTitle,
+        Date:            docDate,
         FrontmatterHTML: frontmatterHTML,
+        Sanitize:        dp.configManager.UseSanitize(),
     }
 
     // Emit the converted HTML to the frontend
@@ -325,5 +332,107 @@ func stripFirstH1(htmlContent []byte) []byte {
     modifiedHTML := htmlString[:h1Match[0]] + htmlString[h1Match[1]:]
 
     return []byte(modifiedHTML)
+}
+
+var imgSrcRegex = regexp.MustCompile(`(?i)(<img\b[^>]*?\bsrc\s*=\s*)(?:"([^"]+)"|'([^']+)')([^>]*>)`)
+
+// resolveLocalImageSources converts relative local image paths in <img> tags
+// to embedded base64 data URIs so that WebView2/Chromium can display them without
+// encountering 404s or browser local filesystem origin restrictions.
+func resolveLocalImageSources(htmlContent []byte, docDir string) []byte {
+    if len(htmlContent) == 0 {
+        return htmlContent
+    }
+
+    return imgSrcRegex.ReplaceAllFunc(htmlContent, func(match []byte) []byte {
+        submatches := imgSrcRegex.FindSubmatch(match)
+        if len(submatches) < 5 {
+            return match
+        }
+
+        quote := `"`
+        srcVal := string(submatches[2])
+        if srcVal == "" {
+            quote = `'`
+            srcVal = string(submatches[3])
+        }
+        lowerSrc := strings.ToLower(strings.TrimSpace(srcVal))
+
+        // Ignore external schemes, data URIs, mailto, tel, javascript, and anchors
+        if lowerSrc == "" ||
+            strings.HasPrefix(lowerSrc, "http://") ||
+            strings.HasPrefix(lowerSrc, "https://") ||
+            strings.HasPrefix(lowerSrc, "//") ||
+            strings.HasPrefix(lowerSrc, "data:") ||
+            strings.HasPrefix(lowerSrc, "mailto:") ||
+            strings.HasPrefix(lowerSrc, "tel:") ||
+            strings.HasPrefix(lowerSrc, "javascript:") ||
+            strings.HasPrefix(lowerSrc, "#") {
+            return match
+        }
+
+        // Clean query parameters and fragments (e.g., "icon.svg#hash" or "foo.png?v=1")
+        cleanSrc := srcVal
+        if idx := strings.IndexAny(cleanSrc, "?#"); idx != -1 {
+            cleanSrc = cleanSrc[:idx]
+        }
+        if unescaped, err := url.PathUnescape(cleanSrc); err == nil {
+            cleanSrc = unescaped
+        }
+
+        var targetPath string
+        if filepath.IsAbs(cleanSrc) {
+            targetPath = cleanSrc
+        } else {
+            targetPath = filepath.Join(docDir, cleanSrc)
+        }
+        targetPath = filepath.Clean(targetPath)
+
+        // Stat the target file
+        info, err := os.Stat(targetPath)
+        if err != nil || info.IsDir() {
+            return match
+        }
+
+        // 20MB file size ceiling to prevent OOM / DoS
+        if info.Size() > 20*1024*1024 {
+            return match
+        }
+
+        ext := strings.ToLower(filepath.Ext(targetPath))
+        var mimeType string
+        switch ext {
+        case ".svg":
+            mimeType = "image/svg+xml"
+        case ".png":
+            mimeType = "image/png"
+        case ".jpg", ".jpeg":
+            mimeType = "image/jpeg"
+        case ".gif":
+            mimeType = "image/gif"
+        case ".webp":
+            mimeType = "image/webp"
+        case ".bmp":
+            mimeType = "image/bmp"
+        case ".ico":
+            mimeType = "image/x-icon"
+        default:
+            return match
+        }
+
+        data, err := documentReadFile(targetPath)
+        if err != nil {
+            return match
+        }
+
+        dataURI := fmt.Sprintf("data:%s;base64,%s", mimeType, base64.StdEncoding.EncodeToString(data))
+        var sb strings.Builder
+        sb.Write(submatches[1])
+        sb.WriteString(quote)
+        sb.WriteString(dataURI)
+        sb.WriteString(quote)
+        sb.Write(submatches[4])
+        return []byte(sb.String())
+    })
 }
 

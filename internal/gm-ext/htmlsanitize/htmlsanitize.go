@@ -46,7 +46,8 @@ const htmlSanitizerComment = "<!-- Removed by HTML sanitizer: %s -->"
 //                 elements on the list below)
 var forbiddenTags = []string{
 	"script", "dialog", "embed", "iframe",
-	"form", "button", "select",
+	"form", "button", "select", "object",
+	"applet", "base", "meta",
 }
 
 // Set default list of allowed file extensions
@@ -54,7 +55,7 @@ var allowedExts = []string{
 	// Archive types
 	".zip", ".rar", ".7z", ".tar", ".gz", "tgz", ".bz2",
 	// Plain text Document types
-	".css", "scss", ".htm", ".html", ".md", ".txt", ".xml",
+	".css", "scss", ".htm", ".html", ".md", ".markdown", ".txt", ".xml",
 	// Non-text Document types
 	".docx", ".xlsx", ".pptx", ".pdf",
 	// Images
@@ -473,6 +474,11 @@ func parseAndFilterAttributes(attrString, tagName string) []string {
 				key := strings.TrimSpace(keyValue[0])
 				value := strings.Trim(strings.TrimSpace(keyValue[1]), `"'`)
 
+				// Disallow inline JavaScript event handlers
+				if isEventHandler(key) {
+					continue
+				}
+
 				// Filter the attribute
 				if !isSensitiveAttribute(key) || isAllowedAttributeValue(value) {
 					attrs = append(attrs, fmt.Sprintf(`%s="%s"`, key, value))
@@ -653,10 +659,20 @@ func addTargetBlank(node *gohtml.Node) {
 	}
 }
 
+// isEventHandler checks if an attribute is an inline event handler (e.g. onload, onerror, onclick)
+func isEventHandler(attrName string) bool {
+	lower := strings.ToLower(strings.TrimSpace(attrName))
+	return strings.HasPrefix(lower, "on") && len(lower) > 2
+}
+
 // filterAttributes removes unsafe attributes from elements
 func filterAttributes(node *gohtml.Node) {
 	var attrs []gohtml.Attribute
 	for _, attr := range node.Attr {
+		// Disallow inline JavaScript event handlers
+		if isEventHandler(attr.Key) {
+			continue
+		}
 		if !isSensitiveAttribute(attr.Key) || isAllowedAttributeValue(attr.Val) {
 			attrs = append(attrs, attr)
 		} else {
@@ -696,23 +712,45 @@ func isAllowedAttributeValue(value string) bool {
 		return true
 	}
 
+	trimmedVal := strings.TrimSpace(value)
+	lowerVal := strings.ToLower(trimmedVal)
+
+	// Explicitly disallow pseudo-protocols and script execution schemes
+	if strings.HasPrefix(lowerVal, "javascript:") ||
+		strings.HasPrefix(lowerVal, "vbscript:") {
+		return false
+	}
+
+	// Check data: URIs - allow safe raster image data URIs while blocking unsafe types (html, svg, script)
+	if strings.HasPrefix(lowerVal, "data:") {
+		return isAllowedDataURI(lowerVal)
+	}
+
 	// Allow fragment-only identifiers
 	// (this only checks for values starting with #, not full URLs)
-	if value[0] == '#' {
-		return isValidFragment(value[1:])
+	if trimmedVal[0] == '#' {
+		return isValidFragment(trimmedVal[1:])
 	}
 
 	// Allow directory paths
-	if strings.HasSuffix(value, "/") {
+	if strings.HasSuffix(trimmedVal, "/") {
 		return true
 	}
 
 	// Extract and analyze URL components
-	u, err := url.Parse(value)
+	u, err := url.Parse(trimmedVal)
 	if err != nil {
 		// Fallback to simple path extraction for invalid URLs
-		_, ext := extractExtension(value)
+		_, ext := extractExtension(trimmedVal)
 		return isExtensionAllowed(ext)
+	}
+
+	// Disallow any scheme other than http, https, mailto, tel, file
+	if u.Scheme != "" {
+		scheme := strings.ToLower(u.Scheme)
+		if scheme != "http" && scheme != "https" && scheme != "mailto" && scheme != "tel" && scheme != "file" {
+			return false
+		}
 	}
 
 	// Handle special case: domain-only URLs (e.g., "example.com")
@@ -743,6 +781,42 @@ func isAllowedAttributeValue(value string) bool {
 
 	// Check if extension is allowed
 	return isExtensionAllowed(ext)
+}
+
+// isAllowedDataURI checks if a data: URI is a safe raster image
+func isAllowedDataURI(lowerVal string) bool {
+	if !strings.HasPrefix(lowerVal, "data:") {
+		return false
+	}
+
+	// Strictly allow only safe raster image MIME types (png, jpeg, jpg, gif, webp, bmp, ico)
+	// SVG is intentionally excluded from user-provided data URIs because SVG can contain script/XML payloads.
+	allowedPrefixes := []string{
+		"data:image/png;",
+		"data:image/jpeg;",
+		"data:image/jpg;",
+		"data:image/gif;",
+		"data:image/webp;",
+		"data:image/bmp;",
+		"data:image/x-icon;",
+		"data:image/vnd.microsoft.icon;",
+	}
+
+	for _, prefix := range allowedPrefixes {
+		if strings.HasPrefix(lowerVal, prefix) {
+			commaIdx := strings.Index(lowerVal, ",")
+			if commaIdx == -1 {
+				return false
+			}
+			meta := lowerVal[len("data:"):commaIdx]
+			// Ensure metadata only specifies encoding/parameters and no script injection
+			if strings.Contains(meta, "script") || strings.Contains(meta, "javascript") {
+				return false
+			}
+			return true
+		}
+	}
+	return false
 }
 
 // isDomainOnlyURL checks if URL represents a domain only (no path or file)

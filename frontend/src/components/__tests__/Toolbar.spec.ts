@@ -47,5 +47,27 @@ describe('Toolbar.vue', () => {
     expect(buttons[2].classes()).toContain('theme-toggle-btn');
 
     expect(wrapper.find('.refresh-btn .lucide-refresh').exists()).toBe(true);
+    expect(wrapper.find('.back-btn').exists()).toBe(false);
+  });
+
+  it('renders back button to the left of refresh button when canGoBack is true and emits back event', async () => {
+    const wrapper = mount(Toolbar, {
+      props: {
+        currentTheme: 'light',
+        showFrontmatter: false,
+        canGoBack: true,
+      },
+    });
+
+    const buttons = wrapper.findAll('.toolbar-right > .toolbar-btn');
+    expect(buttons[0].classes()).toContain('back-btn');
+    expect(buttons[1].classes()).toContain('refresh-btn');
+    expect(buttons[2].classes()).toContain('frontmatter-toggle-btn');
+    expect(buttons[3].classes()).toContain('theme-toggle-btn');
+
+    expect(wrapper.find('.back-btn .lucide-arrow-left').exists()).toBe(true);
+
+    await wrapper.get('.back-btn').trigger('click');
+    expect(wrapper.emitted('back')).toHaveLength(1);
   });
 });

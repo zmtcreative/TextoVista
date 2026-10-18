@@ -1,9 +1,13 @@
 package main
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	internalapp "texto-vista/internal/app"
 	"texto-vista/internal/cli"
 )
 
@@ -359,4 +363,210 @@ type assertError string
 
 func (e assertError) Error() string {
 	return string(e)
+}
+
+func TestAppSaveSettingsNilSafety(t *testing.T) {
+	app := NewApp(&cli.CliArgs{})
+	if err := app.SaveSettings(nil); err == nil {
+		t.Fatal("SaveSettings(nil) expected error, got nil")
+	}
+	if err := app.SaveSettingsSessionOnly(nil); err == nil {
+		t.Fatal("SaveSettingsSessionOnly(nil) expected error, got nil")
+	}
+}
+
+func TestAppLoadAndDisplayMarkdownValidation(t *testing.T) {
+	app := NewApp(&cli.CliArgs{})
+
+	fakeWatcher := newFakeDocumentWatcher()
+	originalNewWatcher := newDocumentWatcher
+	newDocumentWatcher = func() (documentWatcher, error) {
+		return fakeWatcher, nil
+	}
+	originalLoadMarkdown := appLoadMarkdown
+	appLoadMarkdown = func(_ *internalapp.DocumentProcessor, path string) error {
+		return nil
+	}
+	t.Cleanup(func() {
+		app.setCurrentFile("")
+		newDocumentWatcher = originalNewWatcher
+		appLoadMarkdown = originalLoadMarkdown
+	})
+
+	// Test empty path
+	if err := app.LoadAndDisplayMarkdown(""); err == nil {
+		t.Fatal("LoadAndDisplayMarkdown(\"\") expected error, got nil")
+	}
+
+	// Test non-markdown file extension rejection
+	if err := app.LoadAndDisplayMarkdown("notes.txt"); err == nil || !strings.Contains(err.Error(), "only Markdown") {
+		t.Fatalf("LoadAndDisplayMarkdown(non-markdown) expected only Markdown error, got: %v", err)
+	}
+
+	// Test non-existent file
+	if err := app.LoadAndDisplayMarkdown("non_existent_file_xyz_123.md"); err == nil {
+		t.Fatal("LoadAndDisplayMarkdown(missing) expected error, got nil")
+	}
+
+	// Test directory path
+	tempDir := t.TempDir()
+	if err := app.LoadAndDisplayMarkdown(tempDir); err == nil {
+		t.Fatal("LoadAndDisplayMarkdown(directory) expected error, got nil")
+	}
+
+	// Test relative path traversal outside parent directory to another .md file
+	subDir := filepath.Join(tempDir, "sub")
+	if err := os.Mkdir(subDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	baseFile := filepath.Join(subDir, "base.md")
+	if err := os.WriteFile(baseFile, []byte("# Base"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	outsideMD := filepath.Join(tempDir, "outside.md")
+	if err := os.WriteFile(outsideMD, []byte("# Outside"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	outsideTxt := filepath.Join(tempDir, "outside.txt")
+	if err := os.WriteFile(outsideTxt, []byte("secret"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	app.setCurrentFile(baseFile)
+
+	// Relative path to outside.md should be permitted and loaded
+	if err := app.LoadAndDisplayMarkdown("../outside.md"); err != nil {
+		t.Fatalf("LoadAndDisplayMarkdown(relative outside .md) unexpected error: %v", err)
+	}
+	if app.GetCurrentFile() != outsideMD {
+		t.Fatalf("GetCurrentFile() = %q, want %q", app.GetCurrentFile(), outsideMD)
+	}
+
+	// Relative path to non-markdown file (outside.txt) should be rejected
+	if err := app.LoadAndDisplayMarkdown("../outside.txt"); err == nil || !strings.Contains(err.Error(), "only Markdown") {
+		t.Fatalf("LoadAndDisplayMarkdown(relative non-markdown) expected only Markdown error, got: %v", err)
+	}
+}
+
+func TestAppDocumentHistoryAndNavigation(t *testing.T) {
+	app := NewApp(&cli.CliArgs{})
+
+	fakeWatcher := newFakeDocumentWatcher()
+	originalNewWatcher := newDocumentWatcher
+	newDocumentWatcher = func() (documentWatcher, error) {
+		return fakeWatcher, nil
+	}
+	originalLoadMarkdown := appLoadMarkdown
+	appLoadMarkdown = func(_ *internalapp.DocumentProcessor, path string) error {
+		return nil
+	}
+	t.Cleanup(func() {
+		app.setCurrentFile("")
+		newDocumentWatcher = originalNewWatcher
+		appLoadMarkdown = originalLoadMarkdown
+	})
+
+	// 1. Initial state: CanGoBack is false, NavigateBack returns error
+	if app.CanGoBack() {
+		t.Fatal("CanGoBack() on empty stack = true, want false")
+	}
+	if err := app.NavigateBack(); err == nil {
+		t.Fatal("NavigateBack() on empty stack expected error, got nil")
+	}
+
+	tempDir := t.TempDir()
+	docA := filepath.Join(tempDir, "docA.md")
+	docB := filepath.Join(tempDir, "docB.md")
+	docC := filepath.Join(tempDir, "docC.md")
+
+	if err := os.WriteFile(docA, []byte("# A"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(docB, []byte("# B"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(docC, []byte("# C"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// 2. Initial load of document A (e.g. startup / first open)
+	if err := app.LoadAndDisplayMarkdown(docA); err != nil {
+		t.Fatalf("LoadAndDisplayMarkdown(docA) failed: %v", err)
+	}
+	if app.CanGoBack() {
+		t.Fatal("CanGoBack() after first doc load = true, want false")
+	}
+
+	// Loading the same docA should not push duplicate to history
+	if err := app.LoadAndDisplayMarkdown(docA); err != nil {
+		t.Fatalf("LoadAndDisplayMarkdown(docA again) failed: %v", err)
+	}
+	if app.CanGoBack() {
+		t.Fatal("CanGoBack() after reloading docA = true, want false")
+	}
+
+	// 3. User navigates from A to B
+	if err := app.LoadAndDisplayMarkdown(docB); err != nil {
+		t.Fatalf("LoadAndDisplayMarkdown(docB) failed: %v", err)
+	}
+	if !app.CanGoBack() {
+		t.Fatal("CanGoBack() after navigating A->B = false, want true")
+	}
+	if app.GetCurrentFile() != docB {
+		t.Fatalf("GetCurrentFile() = %q, want %q", app.GetCurrentFile(), docB)
+	}
+
+	// 4. User navigates from B to C
+	if err := app.LoadAndDisplayMarkdown(docC); err != nil {
+		t.Fatalf("LoadAndDisplayMarkdown(docC) failed: %v", err)
+	}
+	if !app.CanGoBack() {
+		t.Fatal("CanGoBack() after navigating B->C = false, want true")
+	}
+	if app.GetCurrentFile() != docC {
+		t.Fatalf("GetCurrentFile() = %q, want %q", app.GetCurrentFile(), docC)
+	}
+
+	// 5. Navigate back (C -> B)
+	if err := app.NavigateBack(); err != nil {
+		t.Fatalf("NavigateBack() from C error: %v", err)
+	}
+	if app.GetCurrentFile() != docB {
+		t.Fatalf("GetCurrentFile() = %q, want %q", app.GetCurrentFile(), docB)
+	}
+	if !app.CanGoBack() {
+		t.Fatal("CanGoBack() at docB = false, want true (docA still in stack)")
+	}
+
+	// 6. Navigate back (B -> A)
+	if err := app.NavigateBack(); err != nil {
+		t.Fatalf("NavigateBack() from B error: %v", err)
+	}
+	if app.GetCurrentFile() != docA {
+		t.Fatalf("GetCurrentFile() = %q, want %q", app.GetCurrentFile(), docA)
+	}
+	if app.CanGoBack() {
+		t.Fatal("CanGoBack() at docA = true, want false (stack should be empty)")
+	}
+
+	// 7. Clear history
+	app.pushDocHistory(docA)
+	if !app.CanGoBack() {
+		t.Fatal("CanGoBack() after manual push = false, want true")
+	}
+	app.clearDocHistory()
+	if app.CanGoBack() {
+		t.Fatal("CanGoBack() after clearDocHistory = true, want false")
+	}
+
+	// 8. Stack size limit capping
+	for i := 0; i < 150; i++ {
+		app.pushDocHistory(filepath.Join(tempDir, fmt.Sprintf("doc_%d.md", i)))
+	}
+	app.watchMu.Lock()
+	historyLen := len(app.docHistory)
+	app.watchMu.Unlock()
+	if historyLen != maxDocHistorySize {
+		t.Fatalf("len(docHistory) = %d, want capped at %d", historyLen, maxDocHistorySize)
+	}
 }

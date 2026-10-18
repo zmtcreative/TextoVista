@@ -298,3 +298,101 @@ func TestDocumentProcessorLoadAndDisplayMarkdownReplacesAbbreviations(t *testing
 		t.Fatalf("final payload FrontmatterHTML = %q, want commented-out frontmatter placeholder", finalPayload.FrontmatterHTML)
 	}
 }
+
+func TestDocumentProcessorResolvesLocalImages(t *testing.T) {
+	tempDir := t.TempDir()
+	svgPath := filepath.Join(tempDir, "icon.svg")
+	pngPath := filepath.Join(tempDir, "photo.png")
+	if err := os.WriteFile(svgPath, []byte(`<svg viewBox="0 0 10 10"><circle r="5"/></svg>`), 0644); err != nil {
+		t.Fatalf("Failed to write svg: %v", err)
+	}
+	if err := os.WriteFile(pngPath, []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}, 0644); err != nil {
+		t.Fatalf("Failed to write png: %v", err)
+	}
+
+	mdContent := "# Images\n\n![Vector](icon.svg \"Icon\")\n\n![Photo](photo.png)\n\n![Remote](https://example.com/logo.png)\n"
+	mdPath := filepath.Join(tempDir, "test.md")
+	if err := os.WriteFile(mdPath, []byte(mdContent), 0644); err != nil {
+		t.Fatalf("Failed to write md: %v", err)
+	}
+
+	cm := newTestConfigManager(t)
+	dp := NewDocumentProcessorWithStyle(context.Background(), cm)
+	events := captureDocumentRuntime(t)
+
+	if err := dp.LoadAndDisplayMarkdown(mdPath); err != nil {
+		t.Fatalf("LoadAndDisplayMarkdown() error = %v", err)
+	}
+
+	payload := lastRenderedPayload(t, *events)
+	if !strings.Contains(payload.HTML, `src="data:image/svg+xml;base64,`) {
+		t.Fatalf("Expected resolved SVG data URI in HTML, got: %s", payload.HTML)
+	}
+	if !strings.Contains(payload.HTML, `src="data:image/png;base64,`) {
+		t.Fatalf("Expected resolved PNG data URI in HTML, got: %s", payload.HTML)
+	}
+	if !strings.Contains(payload.HTML, `src="https://example.com/logo.png"`) {
+		t.Fatalf("Expected untouched remote image URL, got: %s", payload.HTML)
+	}
+	if !payload.Sanitize {
+		t.Fatalf("Expected payload.Sanitize to be true by default")
+	}
+}
+
+func TestDocumentProcessorPassesSanitizeSetting(t *testing.T) {
+	tempDir := t.TempDir()
+	mdPath := filepath.Join(tempDir, "test.md")
+	if err := os.WriteFile(mdPath, []byte("# Hello\n"), 0644); err != nil {
+		t.Fatalf("Failed to write md: %v", err)
+	}
+
+	cm := newTestConfigManager(t)
+	cm.config.Application.UseInlineHTML = false
+	cm.config.Application.UseSanitize = false
+
+	dp := NewDocumentProcessorWithStyle(context.Background(), cm)
+	events := captureDocumentRuntime(t)
+
+	if err := dp.LoadAndDisplayMarkdown(mdPath); err != nil {
+		t.Fatalf("LoadAndDisplayMarkdown() error = %v", err)
+	}
+
+	payload := lastRenderedPayload(t, *events)
+	if payload.Sanitize {
+		t.Fatalf("Expected payload.Sanitize to be false when configured")
+	}
+}
+
+func TestDocumentProcessorLoadsActualSampleDocument(t *testing.T) {
+	rootPath, err := filepath.Abs("../../assets/docs/sample.md")
+	if err != nil {
+		t.Fatalf("filepath.Abs error = %v", err)
+	}
+	if _, err := os.Stat(rootPath); err != nil {
+		t.Skip("sample.md not found at expected path")
+	}
+
+	cm := newTestConfigManager(t)
+	dp := NewDocumentProcessorWithStyle(context.Background(), cm)
+	events := captureDocumentRuntime(t)
+
+	if err := dp.LoadAndDisplayMarkdown(rootPath); err != nil {
+		t.Fatalf("LoadAndDisplayMarkdown(%q) error = %v", rootPath, err)
+	}
+
+	payload := lastRenderedPayload(t, *events)
+	// Verify danger-square.svg was resolved to data:image/svg+xml;base64,
+	if !strings.Contains(payload.HTML, `data:image/svg+xml;base64,`) {
+		t.Fatalf("sample.md should resolve local SVG danger-square.svg into a base64 data URI")
+	}
+	// Verify PNG data URI was preserved and not rewritten to bad-src
+	if strings.Contains(payload.HTML, `bad-src="data:image/png;base64`) {
+		t.Fatalf("sample.md should NOT rewrite data:image/png;base64 to bad-src")
+	}
+	if !strings.Contains(payload.HTML, `src="data:image/png;base64,`) {
+		t.Fatalf("sample.md should preserve data:image/png;base64 on img src")
+	}
+	if !strings.Contains(payload.HTML, `src="data:image/webp;base64,`) {
+		t.Fatalf("sample.md should preserve data:image/webp;base64 on img src")
+	}
+}

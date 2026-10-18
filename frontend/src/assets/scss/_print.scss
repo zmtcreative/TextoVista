@@ -5,7 +5,11 @@
 // ============================================================================
 
 @media print {
+    html,
     body {
+        height: auto !important;
+        width: 100% !important;
+        overflow: visible !important;
         background-color: white !important;
         color: black !important;
         font-size: 12pt;

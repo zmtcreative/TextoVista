@@ -1,11 +1,12 @@
 <template>
   <div v-if="isVisible" class="frontmatter-section">
-    <div v-html="frontmatterHTML" class="frontmatter-content"></div>
+    <div v-html="sanitizedFrontmatterHTML" class="frontmatter-content"></div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
+import DOMPurify from 'dompurify'
 
 interface Props {
   frontmatterHTML?: string
@@ -18,10 +19,20 @@ const props = defineProps<Props>()
 const isVisible = computed(() => {
   return props.isVisible && props.frontmatterHTML && props.frontmatterHTML.trim().length > 0
 })
+
+const sanitizedFrontmatterHTML = computed(() => {
+  if (!props.frontmatterHTML) return ''
+  return DOMPurify.sanitize(props.frontmatterHTML, {
+    ALLOWED_TAGS: ['div', 'span', 'p', 'b', 'strong', 'i', 'em', 'code', 'pre', 'br'],
+    ALLOWED_ATTR: ['class', 'style'],
+    ALLOW_DATA_ATTR: false
+  })
+})
 </script>
 
 <style scoped>
 .frontmatter-section {
+  flex-shrink: 0;
   position: sticky;
   top: 28px; /* Position below the toolbar (28px height) */
   left: 0;

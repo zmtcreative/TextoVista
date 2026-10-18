@@ -456,3 +456,113 @@ func TestResizeSVG(t *testing.T) {
 		t.Fatalf("resizeSVG() square resize = %q", square)
 	}
 }
+
+func TestHTMLSanitizeSecurityHardening(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		disallow string
+		strip    string
+	}{
+		{
+			name:     "Javascript scheme link rewritten to bad-href",
+			input:    `<a href="javascript:alert(1)">Click Me</a>`,
+			disallow: "bad-href",
+		},
+		{
+			name:     "Data URI scheme link rewritten to bad-href",
+			input:    `<a href="data:text/html,<script>alert(1)</script>">Click Me</a>`,
+			disallow: "bad-href",
+		},
+		{
+			name:     "Inline onerror handler stripped from img",
+			input:    `<img src="https://www.example.com/img/foo.png" onerror="alert(1)"/>`,
+			strip:    "onerror",
+		},
+		{
+			name:     "Object element removed",
+			input:    `<object data="test.swf"></object>`,
+			disallow: "Removed by HTML sanitizer: object",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output := renderSanitizedMarkdown(t, tt.input)
+			if tt.disallow != "" && !strings.Contains(output, tt.disallow) {
+				t.Fatalf("renderSanitizedMarkdown(%q) = %q, expected to contain %q", tt.input, output, tt.disallow)
+			}
+			if tt.strip != "" && strings.Contains(output, tt.strip) {
+				t.Fatalf("renderSanitizedMarkdown(%q) = %q, expected to NOT contain %q", tt.input, output, tt.strip)
+			}
+		})
+	}
+}
+
+func TestHTMLSanitizeDataURIs(t *testing.T) {
+	tests := []struct {
+		name       string
+		input      string
+		wantSrc    string
+		wantBadSrc bool
+	}{
+		{
+			name:       "Markdown image with base64 PNG data URI",
+			input:      `![Status](data:image/png;base64,iVBORw0KGgo= "Status")`,
+			wantSrc:    `src="data:image/png;base64,iVBORw0KGgo="`,
+			wantBadSrc: false,
+		},
+		{
+			name:       "HTML img with base64 PNG data URI",
+			input:      `<img src="data:image/png;base64,iVBORw0KGgo=" alt="Status"/>`,
+			wantSrc:    `src="data:image/png;base64,iVBORw0KGgo="`,
+			wantBadSrc: false,
+		},
+		{
+			name:       "HTML img with base64 JPEG data URI",
+			input:      `<img src="data:image/jpeg;base64,/9j/4AAQSkZJRg==" alt="Photo"/>`,
+			wantSrc:    `src="data:image/jpeg;base64,/9j/4AAQSkZJRg=="`,
+			wantBadSrc: false,
+		},
+		{
+			name:       "Markdown image with data:text/html is disallowed",
+			input:      `![XSS](data:text/html,<script>alert(1)</script>)`,
+			wantBadSrc: true,
+		},
+		{
+			name:       "HTML img with data:text/html is disallowed",
+			input:      `<img src="data:text/html,<script>alert(1)</script>"/>`,
+			wantBadSrc: true,
+		},
+		{
+			name:       "HTML img with raw SVG data URI is disallowed",
+			input:      `<img src="data:image/svg+xml;utf8,<svg onload=alert(1)>"/>`,
+			wantBadSrc: true,
+		},
+		{
+			name:       "Markdown image with SVG data URI is disallowed",
+			input:      `![SVG Data](data:image/svg+xml;base64,PHN2Zz4=)`,
+			wantBadSrc: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output := renderSanitizedMarkdown(t, tt.input)
+			if tt.wantBadSrc {
+				if !strings.Contains(output, "bad-src=") {
+					t.Fatalf("renderSanitizedMarkdown(%q) = %q, expected bad-src attribute", tt.input, output)
+				}
+			} else {
+				if strings.Contains(output, "bad-src=") {
+					t.Fatalf("renderSanitizedMarkdown(%q) = %q, expected valid src, got bad-src", tt.input, output)
+				}
+				if !strings.Contains(output, tt.wantSrc) {
+					t.Fatalf("renderSanitizedMarkdown(%q) = %q, expected to contain %q", tt.input, output, tt.wantSrc)
+				}
+			}
+		})
+	}
+}
+
+

@@ -13,7 +13,8 @@
     text-align: left;
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: 100%;
+    width: 100%;
     overflow: hidden;
 }
 
@@ -56,9 +57,11 @@
 
 .content-area {
   /* Scrollable content area */
-  flex: 1;
+  flex: 1 1 0%;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  overscroll-behavior: contain;
   padding: #{$content-padding};
   background-color: var(--bg-color, inherit);
 }

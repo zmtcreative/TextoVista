@@ -110,4 +110,32 @@ describe('Settings.vue', () => {
 
     expect((wrapper.get('input[type="checkbox"]').element as HTMLInputElement).checked).toBe(true);
   });
+
+  it('removes Sanitize HTML checkbox and syncs use_sanitize_html with use_inline_html on save', async () => {
+    const wrapper = mount(Settings, {
+      props: { show: true },
+      global: {
+        stubs: {
+          teleport: true,
+        },
+      },
+    });
+
+    await vi.waitFor(() => expect(appApiMocks.GetSettings).toHaveBeenCalled());
+
+    // Sanitize HTML checkbox should not exist anywhere in the modal
+    expect(wrapper.text()).not.toContain('Sanitize HTML');
+    expect(wrapper.text()).toContain('Allow Inline HTML');
+    expect(wrapper.text()).toContain('automatically sanitized for safety');
+
+    const inlineHtmlCheckbox = wrapper.get('input[type="checkbox"]');
+    await inlineHtmlCheckbox.setValue(false);
+
+    await wrapper.get('form.settings-form').trigger('submit');
+    await vi.waitFor(() => expect(appApiMocks.SaveSettings).toHaveBeenCalled());
+
+    const savedConfig = appApiMocks.SaveSettings.mock.calls[0][0];
+    expect(savedConfig.application.use_inline_html).toBe(false);
+    expect(savedConfig.application.use_sanitize_html).toBe(false);
+  });
 });

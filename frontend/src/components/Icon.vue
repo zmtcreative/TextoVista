@@ -48,12 +48,18 @@
       <circle cx="3" cy="12" r="1"/>
       <circle cx="3" cy="18" r="1"/>
     </template>
+
+    <!-- Arrow Left / Back icon -->
+    <template v-if="name === 'arrow-left'">
+      <path d="m12 19-7-7 7-7"/>
+      <path d="M19 12H5"/>
+    </template>
   </svg>
 </template>
 
 <script setup lang="ts">
 interface Props {
-  name: 'refresh' | 'sun' | 'moon' | 'list-tree'
+  name: 'refresh' | 'sun' | 'moon' | 'list-tree' | 'arrow-left'
   size?: number | string
   color?: string
 }

@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"texto-vista/internal/utils"
 
@@ -99,6 +100,7 @@ type AlertCalloutOptions struct {
 
 // ConfigManager handles configuration loading and saving
 type ConfigManager struct {
+	mu         sync.RWMutex
 	config     *Config
 	configPath string
 	viper      *viper.Viper
@@ -232,31 +234,34 @@ func (cm *ConfigManager) loadConfig() {
 		// Use defaults if unmarshal fails
 		cm.config = defaultConfig()
 	}
-
-	// Validate and enforce security constraint: inline HTML must always be sanitized
-	if cm.config.Application.UseInlineHTML && !cm.config.Application.UseSanitize {
-		log.Printf("##> LOG: Security: Enabling HTML sanitization (inline HTML requires sanitization)")
-		cm.config.Application.UseSanitize = true
-	}
+	cm.config.Application.UseSanitize = cm.config.Application.UseInlineHTML
 }
 
 // GetConfig returns the current configuration
 func (cm *ConfigManager) GetConfig() *Config {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	return cm.config
 }
 
 // SetConfig updates the configuration with validation
 func (cm *ConfigManager) SetConfig(newConfig *Config) {
-	// Validate and enforce security constraint: inline HTML must always be sanitized
-	if newConfig.Application.UseInlineHTML && !newConfig.Application.UseSanitize {
-		// Force sanitization to true when inline HTML is enabled to prevent XSS
-		newConfig.Application.UseSanitize = true
+	if newConfig == nil {
+		return
 	}
+	cm.mu.Lock()
+	newConfig.Application.UseSanitize = newConfig.Application.UseInlineHTML
 	cm.config = newConfig
+	cm.mu.Unlock()
 }
 
 // SaveConfig saves the current configuration to file
 func (cm *ConfigManager) SaveConfig() error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	cm.config.Application.UseSanitize = cm.config.Application.UseInlineHTML
+
 	// Update viper with current config values for Application section
 	cm.viper.Set("application.use_inline_html", cm.config.Application.UseInlineHTML)
 	cm.viper.Set("application.use_sanitize_html", cm.config.Application.UseSanitize)
@@ -301,19 +306,18 @@ func (cm *ConfigManager) SaveConfig() error {
 // ApplyCliOverrides applies command-line argument overrides to the configuration
 // DEPRECATED: We no longer provide command line overrides (keeping this here for reference for now)
 func (cm *ConfigManager) ApplyCliOverrides(allowInlineHTML, sanitizeHTML, stripH1 *bool) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
 	if allowInlineHTML != nil {
 		cm.config.Application.UseInlineHTML = *allowInlineHTML
+		cm.config.Application.UseSanitize = *allowInlineHTML
 	}
 	if sanitizeHTML != nil {
 		cm.config.Application.UseSanitize = *sanitizeHTML
 	}
 	if stripH1 != nil {
 		cm.config.Application.UseStripH1 = *stripH1
-	}
-
-	// Validate and enforce security constraint: inline HTML must always be sanitized
-	if cm.config.Application.UseInlineHTML && !cm.config.Application.UseSanitize {
-		cm.config.Application.UseSanitize = true
 	}
 }
 
@@ -328,146 +332,216 @@ func (cm *ConfigManager) ValidateAlertCalloutStyle(style string) string {
 
 // GetApplicationConfig returns application configuration for markdown processing
 func (cm *ConfigManager) GetApplicationConfig() (useInlineHTML, useSanitize bool) {
-	return cm.config.Application.UseInlineHTML, cm.config.Application.UseSanitize
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.Application.UseInlineHTML, cm.config.Application.UseInlineHTML
 }
 
 // GetAlertCalloutConfig returns the alert callout style configuration
 func (cm *ConfigManager) GetAlertCalloutConfig() string {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	return cm.config.AlertCallouts.AlertCalloutStyle
 }
 
 // Application-specific configuration getters
 func (cm *ConfigManager) UseInlineHTML() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	return cm.config.Application.UseInlineHTML
 }
 
 func (cm *ConfigManager) UseSanitize() bool {
-	return cm.config.Application.UseSanitize
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.Application.UseInlineHTML
 }
 
 func (cm *ConfigManager) UseStripH1() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	return cm.config.Application.UseStripH1
 }
 
 func (cm *ConfigManager) UseFrontmatterTitle() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	return cm.config.Application.UseFrontmatterTitle
 }
 
 func (cm *ConfigManager) UseAutoRefresh() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	return cm.config.Application.UseAutoRefresh
 }
 
 // Markdown-specific configuration getters
 func (cm *ConfigManager) UseGFM() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	return cm.config.Markdown.UseGFM
 }
 
 func (cm *ConfigManager) UsePHPMDExt() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	return cm.config.Markdown.UsePHPMDExt
 }
 
 func (cm *ConfigManager) UseEmoji() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	return cm.config.Markdown.UseEmoji
 }
 
 func (cm *ConfigManager) UseMermaid() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	return cm.config.Markdown.UseMermaid
 }
 
 func (cm *ConfigManager) UseFigure() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	return cm.config.Markdown.UseFigure
 }
 
 func (cm *ConfigManager) UseAnchor() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	return cm.config.Markdown.UseAnchor
 }
 
 func (cm *ConfigManager) UseFences() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	return cm.config.Markdown.UseFences
 }
 
 func (cm *ConfigManager) UseSections() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	return cm.config.Markdown.UseSections
 }
 
 func (cm *ConfigManager) UseHighlighting() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	return cm.config.Markdown.UseHighlighting
 }
 
 func (cm *ConfigManager) UseFancyLists() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	return cm.config.Markdown.UseFancyLists
 }
 
 func (cm *ConfigManager) UseAttributes() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	return cm.config.Markdown.UseAttributes
 }
 
 func (cm *ConfigManager) UseTypographic() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	return cm.config.Markdown.UseTypographic
 }
 
 func (cm *ConfigManager) UseAbbreviations() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	return cm.config.Markdown.UseAbbreviations
 }
 
 func (cm *ConfigManager) UseKatex() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	return cm.config.Markdown.UseKatex
 }
 
 func (cm *ConfigManager) UseD2Diagrams() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	return cm.config.Markdown.UseD2Diagrams
 }
 
 // Alert callouts configuration getters
 func (cm *ConfigManager) UseAlertCallouts() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	return cm.config.AlertCallouts.UseAlertCallouts
 }
 
 func (cm *ConfigManager) AlertCalloutStyle() string {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	return cm.config.AlertCallouts.AlertCalloutStyle
 }
 
 // Font configuration getters and setters
 func (cm *ConfigManager) GetFontFamily() string {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	return cm.config.Application.FontFamily
 }
 
 func (cm *ConfigManager) SetFontFamily(fontFamily string) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
 	cm.config.Application.FontFamily = fontFamily
 }
 
 func (cm *ConfigManager) GetFontSize() float64 {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	return cm.config.Application.FontSize
 }
 
 func (cm *ConfigManager) SetFontSize(fontSize float64) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
 	cm.config.Application.FontSize = fontSize
 }
 
 func (cm *ConfigManager) GetFontFamilyMono() string {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	return cm.config.Application.FontFamilyMono
 }
 
 func (cm *ConfigManager) SetFontFamilyMono(fontFamily string) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
 	cm.config.Application.FontFamilyMono = fontFamily
 }
 
 func (cm *ConfigManager) GetFontSizeMono() float64 {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	return cm.config.Application.FontSizeMono
 }
 
 func (cm *ConfigManager) SetFontSizeMono(fontSize float64) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
 	cm.config.Application.FontSizeMono = fontSize
 }
 
 func (cm *ConfigManager) GetUseAdvancedFontDetection() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	return cm.config.Application.UseAdvancedFontDetection
 }
 
 func (cm *ConfigManager) SetUseAdvancedFontDetection(useAdvanced bool) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
 	cm.config.Application.UseAdvancedFontDetection = useAdvanced
 }
 
 func (cm *ConfigManager) SetUseAutoRefresh(useAutoRefresh bool) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
 	cm.config.Application.UseAutoRefresh = useAutoRefresh
 }

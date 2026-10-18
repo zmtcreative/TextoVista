@@ -25,6 +25,7 @@ const runtimeMocks = vi.hoisted(() => ({
       runtimeHandlers.delete(eventName);
     }
   }),
+  BrowserOpenURL: vi.fn(),
 }));
 
 const appApiMocks = vi.hoisted(() => ({
@@ -35,6 +36,7 @@ const appApiMocks = vi.hoisted(() => ({
   GetCurrentMonospaceFont: vi.fn(),
   HasCurrentFile: vi.fn(),
   ReloadCurrentDocument: vi.fn(),
+  LoadAndDisplayMarkdown: vi.fn(),
   GetAlertCalloutStyles: vi.fn(),
   GetAvailableFonts: vi.fn(),
   GetAvailableMonospaceFonts: vi.fn(),
@@ -42,6 +44,8 @@ const appApiMocks = vi.hoisted(() => ({
   SetAdvancedFontDetection: vi.fn(),
   SaveSettings: vi.fn(),
   SaveSettingsSessionOnly: vi.fn(),
+  CanGoBack: vi.fn(),
+  NavigateBack: vi.fn(),
 }));
 
 const mermaidMocks = vi.hoisted(() => ({
@@ -77,6 +81,10 @@ describe('App.vue', () => {
     appApiMocks.SetAdvancedFontDetection.mockResolvedValue(undefined);
     appApiMocks.SaveSettings.mockResolvedValue(undefined);
     appApiMocks.SaveSettingsSessionOnly.mockResolvedValue(undefined);
+    appApiMocks.LoadAndDisplayMarkdown.mockResolvedValue(undefined);
+    appApiMocks.CanGoBack.mockResolvedValue(false);
+    appApiMocks.NavigateBack.mockResolvedValue(undefined);
+    runtimeMocks.BrowserOpenURL.mockClear();
 
     mermaidMocks.initialize.mockClear();
     mermaidMocks.run.mockClear();
@@ -133,6 +141,102 @@ describe('App.vue', () => {
     expect(wrapper.get('.document-title').html()).toContain('Rendered Title');
     await wrapper.get('.frontmatter-toggle-btn').trigger('click');
     expect(wrapper.find('.frontmatter-section').exists()).toBe(true);
+  });
+
+  it('sanitizes malicious markup and event handlers in markdown-rendered payload', async () => {
+    const wrapper = mount(App, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          teleport: true,
+        },
+      },
+    });
+    await waitForRuntimeHandlers();
+    const markdownRendered = runtimeHandlers.get('markdown-rendered');
+
+    const maliciousPayload: MarkdownRenderData = {
+      html: '<p>Safe paragraph</p><script>alert("pwned")</script><img src="x" onerror="alert(1)"><a href="javascript:alert(2)">bad link</a>',
+      title: '<script>alert(3)</script><b>Safe Title</b>',
+      date: '<img src=x onerror=alert(4)>2026-10-18',
+      frontmatter_html: '',
+    };
+
+    markdownRendered!(maliciousPayload);
+    await wrapper.vm.$nextTick();
+
+    const contentHtml = wrapper.get('#content').html();
+    expect(contentHtml).toContain('Safe paragraph');
+    expect(contentHtml).not.toContain('<script>');
+    expect(contentHtml).not.toContain('onerror');
+    expect(contentHtml).not.toContain('javascript:alert');
+
+    const titleHtml = wrapper.get('.document-title').html();
+    expect(titleHtml).not.toContain('<script>');
+    expect(titleHtml).toContain('<b>Safe Title</b>');
+
+    const dateHtml = wrapper.get('.document-dates').html();
+    expect(dateHtml).not.toContain('<img');
+    expect(dateHtml).not.toContain('onerror');
+    expect(dateHtml).toContain('2026-10-18');
+  });
+
+  it('bypasses DOMPurify sanitization when sanitize is false in markdown-rendered payload', async () => {
+    const wrapper = mount(App, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          teleport: true,
+        },
+      },
+    });
+    await waitForRuntimeHandlers();
+    const markdownRendered = runtimeHandlers.get('markdown-rendered');
+
+    const unsanitizedPayload: MarkdownRenderData = {
+      html: '<p id="custom-element">Custom <span data-custom="123">Content</span></p>',
+      title: '<b>Custom Title</b>',
+      date: '2026-10-18',
+      frontmatter_html: '',
+      sanitize: false,
+    };
+
+    markdownRendered!(unsanitizedPayload);
+    await wrapper.vm.$nextTick();
+
+    const contentHtml = wrapper.get('#content').html();
+    expect(contentHtml).toContain('data-custom="123"');
+    expect(contentHtml).toContain('Custom');
+  });
+
+  it('renders safe image data URIs when sanitize is enabled', async () => {
+    const wrapper = mount(App, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          teleport: true,
+        },
+      },
+    });
+    await waitForRuntimeHandlers();
+    const markdownRendered = runtimeHandlers.get('markdown-rendered');
+
+    const imagePayload: MarkdownRenderData = {
+      html: '<p><img id="png-img" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=" alt="dot"><img id="svg-img" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjwvc3ZnPg==" alt="vector"></p>',
+      title: 'Image Test',
+      date: '2026-10-18',
+      frontmatter_html: '',
+      sanitize: true,
+    };
+
+    markdownRendered!(imagePayload);
+    await wrapper.vm.$nextTick();
+
+    const pngImg = wrapper.get('#png-img');
+    expect(pngImg.attributes('src')).toContain('data:image/png;base64');
+
+    const svgImg = wrapper.get('#svg-img');
+    expect(svgImg.attributes('src')).toContain('data:image/svg+xml;base64');
   });
 
   it('responds to theme, help, settings, and error events from the runtime', async () => {
@@ -221,5 +325,179 @@ describe('App.vue', () => {
     await vi.waitFor(() => {
       expect(wrapper.get('.error-message').text()).toContain('reload failed');
     });
+  });
+
+  it('renders application layout with proper container hierarchy for scrolling', async () => {
+    const wrapper = mount(App, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          teleport: true,
+        },
+      },
+    });
+    await waitForRuntimeHandlers();
+
+    const container = wrapper.find('.app-container');
+    expect(container.exists()).toBe(true);
+    expect(container.find('.app-toolbar').exists()).toBe(true);
+    expect(container.find('header.app-header').exists()).toBe(true);
+    expect(container.find('main.content-area').exists()).toBe(true);
+  });
+
+  it('intercepts internal anchor links and scrolls content-area while resetting outer scroll', async () => {
+    const wrapper = mount(App, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          teleport: true,
+        },
+      },
+    });
+    await waitForRuntimeHandlers();
+
+    runtimeHandlers.get('markdown-rendered')!({
+      title: 'TOC Test',
+      html: '<h2 id="top-sec">Top Section</h2><p><a id="toc-link" href="#target-sec">Jump</a></p><h2 id="target-sec">Target Section</h2>',
+      date: '2026-10-18',
+    });
+    await wrapper.vm.$nextTick();
+
+    const contentArea = wrapper.find('.content-area').element as HTMLElement;
+    const scrollToSpy = vi.fn();
+    contentArea.scrollTo = scrollToSpy;
+
+    const link = wrapper.get('#toc-link');
+    await link.trigger('click');
+
+    expect(scrollToSpy).toHaveBeenCalled();
+  });
+
+  it('loads relative markdown links via LoadAndDisplayMarkdown', async () => {
+    const wrapper = mount(App, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          teleport: true,
+        },
+      },
+    });
+    await waitForRuntimeHandlers();
+
+    runtimeHandlers.get('markdown-rendered')!({
+      title: 'Doc Links Test',
+      html: '<p><a id="doc-link" href="./guide.md#section-1">Guide</a></p>',
+      date: '2026-10-18',
+    });
+    await wrapper.vm.$nextTick();
+
+    await wrapper.get('#doc-link').trigger('click');
+    expect(appApiMocks.LoadAndDisplayMarkdown).toHaveBeenCalledWith('./guide.md');
+  });
+
+  it('loads traversing relative markdown links and UNC paths via LoadAndDisplayMarkdown', async () => {
+    const wrapper = mount(App, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          teleport: true,
+        },
+      },
+    });
+    await waitForRuntimeHandlers();
+
+    runtimeHandlers.get('markdown-rendered')!({
+      title: 'Doc Links Test 2',
+      html: '<p><a id="traverse-link" href="../../README.md">Readme</a><a id="unc-link" href="\\\\server\\share\\doc.markdown">UNC</a></p>',
+      date: '2026-10-18',
+    });
+    await wrapper.vm.$nextTick();
+
+    await wrapper.get('#traverse-link').trigger('click');
+    expect(appApiMocks.LoadAndDisplayMarkdown).toHaveBeenCalledWith('../../README.md');
+
+    await wrapper.get('#unc-link').trigger('click');
+    expect(appApiMocks.LoadAndDisplayMarkdown).toHaveBeenCalledWith('\\\\server\\share\\doc.markdown');
+  });
+
+  it('opens external links via BrowserOpenURL', async () => {
+    const wrapper = mount(App, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          teleport: true,
+        },
+      },
+    });
+    await waitForRuntimeHandlers();
+
+    runtimeHandlers.get('markdown-rendered')!({
+      title: 'External Links Test',
+      html: '<p><a id="ext-link" href="https://example.com/docs">External</a></p>',
+      date: '2026-10-18',
+    });
+    await wrapper.vm.$nextTick();
+
+    await wrapper.get('#ext-link').trigger('click');
+    expect(runtimeMocks.BrowserOpenURL).toHaveBeenCalledWith('https://example.com/docs');
+  });
+
+  it('blocks javascript: links as defense-in-depth', async () => {
+    const wrapper = mount(App, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          teleport: true,
+        },
+      },
+    });
+    await waitForRuntimeHandlers();
+
+    runtimeHandlers.get('markdown-rendered')!({
+      title: 'JS Links Test',
+      html: '<p><a id="js-link" href="javascript:alert(1)">Exploit</a></p>',
+      date: '2026-10-18',
+    });
+    await wrapper.vm.$nextTick();
+
+    runtimeMocks.BrowserOpenURL.mockClear();
+    appApiMocks.LoadAndDisplayMarkdown.mockClear();
+
+    await wrapper.get('#js-link').trigger('click');
+    expect(runtimeMocks.BrowserOpenURL).not.toHaveBeenCalled();
+    expect(appApiMocks.LoadAndDisplayMarkdown).not.toHaveBeenCalled();
+  });
+
+  it('toggles back button based on history-state-changed event and navigates back', async () => {
+    const wrapper = mount(App, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          teleport: true,
+        },
+      },
+    });
+    await waitForRuntimeHandlers();
+
+    // Initially canGoBack is false, back button should not exist
+    expect(wrapper.find('.back-btn').exists()).toBe(false);
+
+    // Simulate history-state-changed with canGoBack: true
+    const historyChanged = runtimeHandlers.get('history-state-changed');
+    expect(historyChanged).toBeDefined();
+    historyChanged!({ canGoBack: true });
+    await wrapper.vm.$nextTick();
+
+    // Back button should now be visible
+    expect(wrapper.find('.back-btn').exists()).toBe(true);
+
+    // Click back button to navigate back
+    await wrapper.get('.back-btn').trigger('click');
+    expect(appApiMocks.NavigateBack).toHaveBeenCalledTimes(1);
+
+    // Simulate history-state-changed with canGoBack: false
+    historyChanged!({ canGoBack: false });
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('.back-btn').exists()).toBe(false);
   });
 });

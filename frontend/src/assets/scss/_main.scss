@@ -8,17 +8,32 @@
 // Base Styles
 // ============================================================================
 
+html,
+body {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
 html {
     text-align: left;
     --app-max-width: #{$view-max-width-px};
 }
 
-body[class] {
-    margin: 0;
+body {
+    position: relative;
     background-color: var(--bg-color);
     color: var(--text-color);
     transition: background-color 0.3s, color 0.3s;
     font-size: var(--font-size);
+}
+
+.mermaidTooltip {
+    top: 0;
+    left: 0;
+    pointer-events: none;
 }
 
 // ============================================================================
@@ -34,6 +49,10 @@ body[class] {
     h1, h2, h3 {
         border-bottom: 1px solid rgba(var(--text-color-rgb), 0.33);
         padding-bottom: 0.3rem;
+    }
+
+    h1, h2, h3, h4, h5, h6, [id] {
+        scroll-margin-top: 12px;
     }
 
     h1, h2, h3, h4, h5, h6 {

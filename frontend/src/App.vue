@@ -2,8 +2,10 @@
   <div class="app-container">
     <!-- Application Toolbar -->
     <Toolbar
+      :canGoBack="canGoBack"
       :currentTheme="currentTheme"
       :showFrontmatter="showFrontmatter"
+      @back="navigateBack"
       @refresh="refreshCurrentDocument"
       @toggleTheme="toggleTheme"
       @toggleFrontmatter="toggleFrontmatter"
@@ -24,7 +26,7 @@
     </header>
 
     <!-- Scrollable Main Content Area -->
-    <main class="content-area">
+    <main class="content-area" ref="contentAreaRef">
       <div v-if="errorMessage" id="content" class="markdown-body error-content">
         <h1>An error occurred:</h1>
         <p>{{ errorMessage }}</p>
@@ -50,9 +52,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick,onMounted, onUnmounted } from 'vue';
-import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime';
-import { GetTheme, SetTheme, GetCurrentFont, GetCurrentMonospaceFont, HasCurrentFile, ReloadCurrentDocument } from '../wailsjs/go/main/App';
+import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
+import { EventsOn, EventsOff, BrowserOpenURL } from '../wailsjs/runtime/runtime';
+import { GetTheme, SetTheme, GetCurrentFont, GetCurrentMonospaceFont, HasCurrentFile, ReloadCurrentDocument, LoadAndDisplayMarkdown, CanGoBack, NavigateBack } from '../wailsjs/go/main/App';
 import Settings from './components/Settings.vue';
 import Help from './components/Help.vue';
 import Toolbar from './components/Toolbar.vue';
@@ -60,6 +62,189 @@ import FrontMatter from './components/FrontMatter.vue';
 import type { MarkdownRenderData } from './types/markdown';
 import mermaid from 'mermaid';
 import katex from 'katex';
+import DOMPurify from 'dompurify';
+
+const contentAreaRef = ref<HTMLElement | null>(null);
+const canGoBack = ref(false);
+
+async function navigateBack() {
+  try {
+    await NavigateBack();
+  } catch (err: unknown) {
+    console.error('Failed to navigate back:', err);
+    errorMessage.value = `Failed to navigate back: ${err}`;
+  }
+}
+
+// Guard function to ensure ancestor containers and window root are never scrolled
+function resetOuterScroll() {
+  if (window.scrollY !== 0 || window.scrollX !== 0) {
+    if (typeof window.scrollTo === 'function') {
+      window.scrollTo(0, 0);
+    } else {
+      window.scrollX = 0;
+      window.scrollY = 0;
+    }
+  }
+  if (document.documentElement.scrollTop !== 0) {
+    document.documentElement.scrollTop = 0;
+  }
+  if (document.body.scrollTop !== 0) {
+    document.body.scrollTop = 0;
+  }
+  const app = document.getElementById('app');
+  if (app && app.scrollTop !== 0) {
+    app.scrollTop = 0;
+  }
+  const container = document.querySelector('.app-container');
+  if (container && container.scrollTop !== 0) {
+    container.scrollTop = 0;
+  }
+}
+
+// Programmatic smooth scroll to anchor inside content area only
+function scrollToAnchor(targetHash: string) {
+  const contentArea = contentAreaRef.value || (document.querySelector('.content-area') as HTMLElement | null);
+  if (!contentArea) return;
+
+  if (!targetHash || targetHash === '#' || targetHash === '#top') {
+    if (typeof contentArea.scrollTo === 'function') {
+      contentArea.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      contentArea.scrollTop = 0;
+    }
+    resetOuterScroll();
+    return;
+  }
+
+  const rawId = targetHash.replace(/^#/, '');
+  let targetId = rawId;
+  try {
+    targetId = decodeURIComponent(rawId);
+  } catch (_) {}
+
+  let targetEl: HTMLElement | null = document.getElementById(targetId);
+  if (!targetEl) {
+    try {
+      targetEl = contentArea.querySelector(`[id="${CSS.escape(targetId)}"]`);
+    } catch (_) {}
+  }
+  if (!targetEl) {
+    try {
+      targetEl = contentArea.querySelector(`a[name="${CSS.escape(targetId)}"]`) ||
+                 contentArea.querySelector(`[name="${CSS.escape(targetId)}"]`);
+    } catch (_) {}
+  }
+  if (!targetEl && rawId !== targetId) {
+    try {
+      targetEl = document.getElementById(rawId) ||
+                 contentArea.querySelector(`[id="${CSS.escape(rawId)}"]`);
+    } catch (_) {}
+  }
+
+  if (targetEl) {
+    const contentRect = contentArea.getBoundingClientRect();
+    const targetRect = targetEl.getBoundingClientRect();
+    // 10px breathing room below header
+    const scrollTarget = Math.max(0, contentArea.scrollTop + (targetRect.top - contentRect.top) - 10);
+    if (typeof contentArea.scrollTo === 'function') {
+      contentArea.scrollTo({ top: scrollTarget, behavior: 'smooth' });
+    } else {
+      contentArea.scrollTop = scrollTarget;
+    }
+    resetOuterScroll();
+  }
+}
+
+function onHashChange() {
+  if (window.location.hash) {
+    scrollToAnchor(window.location.hash);
+  }
+}
+
+// Global click handler to intercept internal anchors, relative markdown links, and external links
+function handleLinkClick(e: MouseEvent) {
+  const target = e.target as HTMLElement | null;
+  const link = target?.closest ? (target.closest('a') as HTMLAnchorElement | null) : null;
+  if (!link) return;
+
+  const rawHref = link.getAttribute('href');
+  if (!rawHref) return;
+
+  // Defense-in-depth: Block javascript: pseudo-protocols
+  if (/^\s*javascript:/i.test(rawHref)) {
+    e.preventDefault();
+    console.warn('Blocked execution of javascript: URL:', rawHref);
+    return;
+  }
+
+  // 1. Pure anchor link (e.g. href="#something" or href="#")
+  if (rawHref.startsWith('#')) {
+    e.preventDefault();
+    scrollToAnchor(rawHref);
+    try {
+      history.replaceState(null, '', rawHref);
+    } catch (_) {}
+    return;
+  }
+
+  // 2. Full URL matching current origin and pathname with a hash
+  try {
+    const url = new URL(link.href, window.location.href);
+    if (
+      url.origin === window.location.origin &&
+      url.pathname === window.location.pathname &&
+      url.hash
+    ) {
+      e.preventDefault();
+      scrollToAnchor(url.hash);
+      try {
+        history.replaceState(null, '', url.hash);
+      } catch (_) {}
+      return;
+    }
+  } catch (_) {}
+
+  // 3. Markdown file links (relative links, UNC paths, and file:// URLs)
+  const isHttpOrRemote = /^(https?|mailto|tel|ftp):/i.test(rawHref);
+  const isMarkdown = /\.md($|\?|#)/i.test(rawHref) || /\.markdown($|\?|#)/i.test(rawHref);
+  if (!isHttpOrRemote && isMarkdown) {
+    e.preventDefault();
+    const [filePath, targetHash] = rawHref.split('#');
+    if (filePath) {
+      LoadAndDisplayMarkdown(filePath).then(() => {
+        if (targetHash) {
+          nextTick(() => {
+            scrollToAnchor(`#${targetHash}`);
+          });
+        }
+      }).catch((err: unknown) => {
+        console.error('Failed to load markdown link:', filePath, err);
+        errorMessage.value = `Failed to load link: ${err}`;
+      });
+    } else if (targetHash) {
+      scrollToAnchor(`#${targetHash}`);
+    }
+    return;
+  }
+
+  // 4. External URLs (http, https, mailto, etc.)
+  const fullHref = link.href;
+  if (
+    fullHref.startsWith('http://') ||
+    fullHref.startsWith('https://') ||
+    fullHref.startsWith('mailto:') ||
+    fullHref.startsWith('ftp://')
+  ) {
+    e.preventDefault();
+    try {
+      BrowserOpenURL(fullHref);
+    } catch (_) {
+      window.open(fullHref, '_blank', 'noopener,noreferrer');
+    }
+    return;
+  }
+}
 
 // const renderedHTML = ref('');
 const renderedHTML = ref('<h3 style="text-align:center;color:green; border:0;">Loading document...</h3>');
@@ -374,14 +559,36 @@ onMounted(async () => {
   EventsOn('markdown-rendered', (data: MarkdownRenderData) => {
     console.log('Received markdownLoaded event. Updating HTML content.');
     clearTimeout(renderTimeout); // Cancel the timeout since we got the event
-    renderedHTML.value = data.html;
-    docHTMLTitle.value = data.title;
-    docHTMLDate.value = data.date;
+    if (data.sanitize === false) {
+      renderedHTML.value = data.html || '';
+      docHTMLTitle.value = data.title || '';
+      docHTMLDate.value = data.date || '';
+    } else {
+      renderedHTML.value = DOMPurify.sanitize(data.html || '', {
+        USE_PROFILES: { html: true, svg: true, mathMl: true },
+        ADD_ATTR: ['target']
+      });
+      docHTMLTitle.value = DOMPurify.sanitize(data.title || '', {
+        ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'code', 'span'],
+        ALLOWED_ATTR: ['class']
+      });
+      docHTMLDate.value = DOMPurify.sanitize(data.date || '', {
+        ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'code', 'span'],
+        ALLOWED_ATTR: ['class']
+      });
+    }
     frontmatterHTML.value = data.frontmatter_html || '';
     errorMessage.value = ''; // Clear any previous error message
     // Ensure the DOM is updated before running Mermaid, KaTeX and other updates
     nextTick(() => {
       console.log('Next tick after setting renderedHTML');
+
+      // Reset content-area scroll position to top for newly loaded documents
+      const contentArea = contentAreaRef.value || (document.querySelector('.content-area') as HTMLElement | null);
+      if (contentArea) {
+        contentArea.scrollTop = 0;
+      }
+      resetOuterScroll();
 
       // After the content is set, initialize Mermaid diagrams
       mermaid.run({
@@ -415,9 +622,30 @@ onMounted(async () => {
     console.log('Received show-settings event'); // Debug log
     openSettingsDialog();
   });
+
+  // Check and listen for document history state for back button navigation
+  CanGoBack().then((res) => {
+    canGoBack.value = Boolean(res);
+  }).catch(() => {
+    canGoBack.value = false;
+  });
+
+  EventsOn('history-state-changed', (data: { canGoBack: boolean }) => {
+    canGoBack.value = Boolean(data?.canGoBack);
+  });
+
+  // Set up listeners for robust internal anchor navigation and window scroll prevention
+  window.addEventListener('scroll', resetOuterScroll, { passive: true });
+  window.addEventListener('hashchange', onHashChange);
+  document.body.addEventListener('click', handleLinkClick);
 });
 
 onUnmounted(() => {
+  // Clean up global window and document listeners
+  window.removeEventListener('scroll', resetOuterScroll);
+  window.removeEventListener('hashchange', onHashChange);
+  document.body.removeEventListener('click', handleLinkClick);
+
   // Clean up the event listener when the component is destroyed
   EventsOff('markdown-rendered');
   EventsOff('error');
@@ -428,6 +656,7 @@ onUnmounted(() => {
   EventsOff('save-as-pdf');
   EventsOff('show-help');
   EventsOff('show-settings');
+  EventsOff('history-state-changed');
 });
 
 </script>
@@ -438,7 +667,8 @@ onUnmounted(() => {
 .app-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
+  width: 100%;
   overflow: hidden;
 }
 
