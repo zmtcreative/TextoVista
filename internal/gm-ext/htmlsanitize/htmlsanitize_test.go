@@ -456,3 +456,46 @@ func TestResizeSVG(t *testing.T) {
 		t.Fatalf("resizeSVG() square resize = %q", square)
 	}
 }
+
+func TestHTMLSanitizeSecurityHardening(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		disallow string
+		strip    string
+	}{
+		{
+			name:     "Javascript scheme link rewritten to bad-href",
+			input:    `<a href="javascript:alert(1)">Click Me</a>`,
+			disallow: "bad-href",
+		},
+		{
+			name:     "Data URI scheme link rewritten to bad-href",
+			input:    `<a href="data:text/html,<script>alert(1)</script>">Click Me</a>`,
+			disallow: "bad-href",
+		},
+		{
+			name:     "Inline onerror handler stripped from img",
+			input:    `<img src="https://www.example.com/img/foo.png" onerror="alert(1)"/>`,
+			strip:    "onerror",
+		},
+		{
+			name:     "Object element removed",
+			input:    `<object data="test.swf"></object>`,
+			disallow: "Removed by HTML sanitizer: object",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output := renderSanitizedMarkdown(t, tt.input)
+			if tt.disallow != "" && !strings.Contains(output, tt.disallow) {
+				t.Fatalf("renderSanitizedMarkdown(%q) = %q, expected to contain %q", tt.input, output, tt.disallow)
+			}
+			if tt.strip != "" && strings.Contains(output, tt.strip) {
+				t.Fatalf("renderSanitizedMarkdown(%q) = %q, expected to NOT contain %q", tt.input, output, tt.strip)
+			}
+		})
+	}
+}
+

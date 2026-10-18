@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -359,4 +361,50 @@ type assertError string
 
 func (e assertError) Error() string {
 	return string(e)
+}
+
+func TestAppSaveSettingsNilSafety(t *testing.T) {
+	app := NewApp(&cli.CliArgs{})
+	if err := app.SaveSettings(nil); err == nil {
+		t.Fatal("SaveSettings(nil) expected error, got nil")
+	}
+	if err := app.SaveSettingsSessionOnly(nil); err == nil {
+		t.Fatal("SaveSettingsSessionOnly(nil) expected error, got nil")
+	}
+}
+
+func TestAppLoadAndDisplayMarkdownValidation(t *testing.T) {
+	app := NewApp(&cli.CliArgs{})
+
+	// Test empty path
+	if err := app.LoadAndDisplayMarkdown(""); err == nil {
+		t.Fatal("LoadAndDisplayMarkdown(\"\") expected error, got nil")
+	}
+
+	// Test non-existent file
+	if err := app.LoadAndDisplayMarkdown("non_existent_file_xyz_123.md"); err == nil {
+		t.Fatal("LoadAndDisplayMarkdown(missing) expected error, got nil")
+	}
+
+	// Test directory path
+	tempDir := t.TempDir()
+	if err := app.LoadAndDisplayMarkdown(tempDir); err == nil {
+		t.Fatal("LoadAndDisplayMarkdown(directory) expected error, got nil")
+	}
+
+	// Test path escaping parent directory
+	subDir := filepath.Join(tempDir, "sub")
+	if err := os.Mkdir(subDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	baseFile := filepath.Join(subDir, "base.md")
+	if err := os.WriteFile(baseFile, []byte("# Base"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	app.setCurrentFile(baseFile)
+
+	// Try relative path escaping parent directory
+	if err := app.LoadAndDisplayMarkdown("../../outside.md"); err == nil {
+		t.Fatal("LoadAndDisplayMarkdown(path escaping baseDir) expected error, got nil")
+	}
 }

@@ -52,7 +52,10 @@ var (
 	}
 )
 
-const autoRefreshDebounce = 250 * time.Millisecond
+const (
+	autoRefreshDebounce = 250 * time.Millisecond
+	maxDocumentSize     = 20 * 1024 * 1024 // 20 MB ceiling
+)
 
 type appTimer interface {
 	Stop() bool
@@ -114,6 +117,8 @@ type App struct {
 	watchedDir       string
 	watchedFile      string
 	autoRefreshTimer appTimer
+	watchCtx         context.Context
+	watchCancel      context.CancelFunc
 }
 
 // NewApp creates a new App application struct
@@ -147,6 +152,7 @@ func NewApp(cliArgs *cli.CliArgs) *App {
 		cmdlineOptions:     stringFromPtr(cliArgs.CmdlineOptions, ""),       // Store the command line options for help display
 		configManager:      configManager,                                   // Store the config manager
 		fontManager:        app.NewFontManager(configManager),               // Initialize font manager with config manager
+		binaryDetector:     app.NewBinaryDetector(),                         // Initialize binary detector
 	}
 }
 
@@ -269,9 +275,15 @@ func (a *App) menu() *menu.Menu {
 	fileMenu := appMenu.AddSubmenu("File")
 	fileMenu.AddText("Open", keys.CmdOrCtrl("o"), func(data *menu.CallbackData) {
 		previousFile := a.GetCurrentFile()
-		a.fileManager.OpenFileMenuHandler(data, &a.currentFile)
-		if a.currentFile != "" && a.currentFile != previousFile {
-			a.setCurrentFile(a.currentFile)
+		var selectedFile string
+		a.watchMu.Lock()
+		fm := a.fileManager
+		a.watchMu.Unlock()
+		if fm != nil {
+			fm.OpenFileMenuHandler(data, &selectedFile)
+			if selectedFile != "" && selectedFile != previousFile {
+				a.setCurrentFile(selectedFile)
+			}
 		}
 	})
 	fileMenu.AddSeparator()
@@ -327,11 +339,90 @@ func (a *App) SetTheme(theme string) {
 	a.themeManager.SetTheme(theme)
 }
 
+func (a *App) resolveAndValidatePath(filePath string) (string, error) {
+	trimmed := strings.TrimSpace(filePath)
+	if trimmed == "" {
+		return "", fmt.Errorf("file path cannot be empty")
+	}
+
+	cleanInput := filepath.Clean(trimmed)
+	var targetPath string
+
+	if filepath.IsAbs(cleanInput) {
+		targetPath = cleanInput
+	} else {
+		// Resolve relative path against the parent directory of the current file
+		cur := a.GetCurrentFile()
+		if cur == "" {
+			wd, err := os.Getwd()
+			if err != nil {
+				return "", fmt.Errorf("unable to determine working directory: %w", err)
+			}
+			targetPath = filepath.Join(wd, cleanInput)
+		} else {
+			baseDir := filepath.Dir(filepath.Clean(cur))
+			targetPath = filepath.Join(baseDir, cleanInput)
+			// Restrict traversal relative to the current file's parent directory
+			rel, err := filepath.Rel(baseDir, targetPath)
+			if err != nil || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || rel == ".." {
+				return "", fmt.Errorf("access denied: path escapes parent directory")
+			}
+		}
+	}
+
+	cleanTarget := filepath.Clean(targetPath)
+
+	info, err := os.Stat(cleanTarget)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("file not found: %s", cleanTarget)
+		}
+		if os.IsPermission(err) {
+			return "", fmt.Errorf("permission denied to read file: %s", cleanTarget)
+		}
+		return "", fmt.Errorf("failed to access file %s: %w", cleanTarget, err)
+	}
+
+	if info.IsDir() {
+		return "", fmt.Errorf("cannot open directory as document: %s", cleanTarget)
+	}
+
+	if !info.Mode().IsRegular() {
+		return "", fmt.Errorf("cannot open non-regular file: %s", cleanTarget)
+	}
+
+	if info.Size() > maxDocumentSize {
+		return "", fmt.Errorf("file size (%d bytes) exceeds 20MB limit: %s", info.Size(), cleanTarget)
+	}
+
+	// Verify it's not a binary file
+	if a.binaryDetector != nil {
+		isBinary, err := a.binaryDetector.IsBinaryFile(cleanTarget)
+		if err != nil {
+			return "", fmt.Errorf("binary check failed for %s: %w", cleanTarget, err)
+		}
+		if isBinary {
+			return "", fmt.Errorf("cannot open binary file: %s", cleanTarget)
+		}
+	}
+
+	return cleanTarget, nil
+}
+
 // LoadAndDisplayMarkdown loads and displays a markdown file
 func (a *App) LoadAndDisplayMarkdown(filePath string) error {
-	err := appLoadMarkdown(a.documentProcessor, filePath)
+	validatedPath, err := a.resolveAndValidatePath(filePath)
+	if err != nil {
+		return err
+	}
+
+	a.watchMu.Lock()
+	processor := a.documentProcessor
+	a.watchMu.Unlock()
+
+	err = appLoadMarkdown(processor, validatedPath)
 	if err == nil {
-		a.setCurrentFile(filePath)
+		a.setCurrentFile(validatedPath)
 	}
 	return err
 }
@@ -355,6 +446,10 @@ func (a *App) GetAlertCalloutStyles() map[string]string {
 
 // SaveSettings saves the provided settings configuration
 func (a *App) SaveSettings(settings *app.Config) error {
+	if settings == nil {
+		return fmt.Errorf("invalid settings: settings payload cannot be nil")
+	}
+
 	// Validate the alert callout style
 	settings.AlertCallouts.AlertCalloutStyle = a.configManager.ValidateAlertCalloutStyle(settings.AlertCallouts.AlertCalloutStyle)
 
@@ -376,7 +471,7 @@ func (a *App) SaveSettings(settings *app.Config) error {
 	a.watchMu.Unlock()
 
 	// Automatically reload the current document to apply new settings
-	if a.currentFile != "" {
+	if a.GetCurrentFile() != "" {
 		if reloadErr := a.ReloadCurrentDocument(); reloadErr != nil {
 			log.Printf("##> LOG: Warning: Failed to reload document after settings change: %v", reloadErr)
 			// Don't return the reload error, as settings were successfully saved
@@ -388,6 +483,10 @@ func (a *App) SaveSettings(settings *app.Config) error {
 
 // SaveSettingsSessionOnly applies the provided settings to the current session without saving to disk
 func (a *App) SaveSettingsSessionOnly(settings *app.Config) error {
+	if settings == nil {
+		return fmt.Errorf("invalid settings: settings payload cannot be nil")
+	}
+
 	// Validate the alert callout style
 	settings.AlertCallouts.AlertCalloutStyle = a.configManager.ValidateAlertCalloutStyle(settings.AlertCallouts.AlertCalloutStyle)
 
@@ -404,7 +503,7 @@ func (a *App) SaveSettingsSessionOnly(settings *app.Config) error {
 	a.watchMu.Unlock()
 
 	// Automatically reload the current document to apply new settings
-	if a.currentFile != "" {
+	if a.GetCurrentFile() != "" {
 		if reloadErr := a.ReloadCurrentDocument(); reloadErr != nil {
 			log.Printf("##> LOG: Warning: Failed to reload document after settings change: %v", reloadErr)
 			// Don't return the reload error, as settings were successfully applied
@@ -562,11 +661,16 @@ func (a *App) syncFileWatcher() error {
 	defer a.watchMu.Unlock()
 
 	if a.currentFile == "" {
+		if a.watchCancel != nil {
+			a.watchCancel()
+			a.watchCancel = nil
+		}
 		if a.fileWatcher != nil && a.watchedDir != "" {
 			_ = a.fileWatcher.Remove(a.watchedDir)
 		}
 		a.watchedDir = ""
 		a.watchedFile = ""
+		a.watchCtx = nil
 		return nil
 	}
 
@@ -576,7 +680,13 @@ func (a *App) syncFileWatcher() error {
 			return fmt.Errorf("failed to create file watcher: %w", err)
 		}
 		a.fileWatcher = watcher
-		go a.runFileWatcher(watcher)
+
+		parentCtx := a.ctx
+		if parentCtx == nil {
+			parentCtx = context.Background()
+		}
+		a.watchCtx, a.watchCancel = context.WithCancel(parentCtx)
+		go a.runFileWatcher(a.watchCtx, watcher)
 	}
 
 	targetFile := filepath.Clean(a.currentFile)
@@ -604,6 +714,11 @@ func (a *App) closeFileWatcher() {
 	a.watchMu.Lock()
 	defer a.watchMu.Unlock()
 
+	if a.watchCancel != nil {
+		a.watchCancel()
+		a.watchCancel = nil
+	}
+
 	if a.autoRefreshTimer != nil {
 		a.autoRefreshTimer.Stop()
 		a.autoRefreshTimer = nil
@@ -618,11 +733,14 @@ func (a *App) closeFileWatcher() {
 
 	a.watchedDir = ""
 	a.watchedFile = ""
+	a.watchCtx = nil
 }
 
-func (a *App) runFileWatcher(watcher documentWatcher) {
+func (a *App) runFileWatcher(ctx context.Context, watcher documentWatcher) {
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case event, ok := <-watcher.Events():
 			if !ok {
 				return
@@ -654,7 +772,19 @@ func (a *App) handleWatchedFileEvent(event fsnotify.Event) {
 }
 
 func (a *App) scheduleAutoRefresh() {
+	a.watchMu.Lock()
+	previousTimer := a.autoRefreshTimer
+	watchCtx := a.watchCtx
+	a.watchMu.Unlock()
+
+	if previousTimer != nil {
+		previousTimer.Stop()
+	}
+
 	newTimer := appAfterFunc(autoRefreshDebounce, func() {
+		if watchCtx != nil && watchCtx.Err() != nil {
+			return
+		}
 		if !a.configManager.UseAutoRefresh() {
 			return
 		}
@@ -665,13 +795,13 @@ func (a *App) scheduleAutoRefresh() {
 	})
 
 	a.watchMu.Lock()
-	previousTimer := a.autoRefreshTimer
+	if a.watchCtx != nil && watchCtx != nil && a.watchCtx != watchCtx {
+		newTimer.Stop()
+		a.watchMu.Unlock()
+		return
+	}
 	a.autoRefreshTimer = newTimer
 	a.watchMu.Unlock()
-
-	if previousTimer != nil {
-		previousTimer.Stop()
-	}
 }
 
 func sameDocumentPath(left, right string) bool {

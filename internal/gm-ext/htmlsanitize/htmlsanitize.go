@@ -46,7 +46,8 @@ const htmlSanitizerComment = "<!-- Removed by HTML sanitizer: %s -->"
 //                 elements on the list below)
 var forbiddenTags = []string{
 	"script", "dialog", "embed", "iframe",
-	"form", "button", "select",
+	"form", "button", "select", "object",
+	"applet", "base", "meta",
 }
 
 // Set default list of allowed file extensions
@@ -473,6 +474,11 @@ func parseAndFilterAttributes(attrString, tagName string) []string {
 				key := strings.TrimSpace(keyValue[0])
 				value := strings.Trim(strings.TrimSpace(keyValue[1]), `"'`)
 
+				// Disallow inline JavaScript event handlers
+				if isEventHandler(key) {
+					continue
+				}
+
 				// Filter the attribute
 				if !isSensitiveAttribute(key) || isAllowedAttributeValue(value) {
 					attrs = append(attrs, fmt.Sprintf(`%s="%s"`, key, value))
@@ -653,10 +659,20 @@ func addTargetBlank(node *gohtml.Node) {
 	}
 }
 
+// isEventHandler checks if an attribute is an inline event handler (e.g. onload, onerror, onclick)
+func isEventHandler(attrName string) bool {
+	lower := strings.ToLower(strings.TrimSpace(attrName))
+	return strings.HasPrefix(lower, "on") && len(lower) > 2
+}
+
 // filterAttributes removes unsafe attributes from elements
 func filterAttributes(node *gohtml.Node) {
 	var attrs []gohtml.Attribute
 	for _, attr := range node.Attr {
+		// Disallow inline JavaScript event handlers
+		if isEventHandler(attr.Key) {
+			continue
+		}
 		if !isSensitiveAttribute(attr.Key) || isAllowedAttributeValue(attr.Val) {
 			attrs = append(attrs, attr)
 		} else {
@@ -696,23 +712,41 @@ func isAllowedAttributeValue(value string) bool {
 		return true
 	}
 
+	trimmedVal := strings.TrimSpace(value)
+	lowerVal := strings.ToLower(trimmedVal)
+
+	// Explicitly disallow pseudo-protocols and script execution schemes
+	if strings.HasPrefix(lowerVal, "javascript:") ||
+		strings.HasPrefix(lowerVal, "data:") ||
+		strings.HasPrefix(lowerVal, "vbscript:") {
+		return false
+	}
+
 	// Allow fragment-only identifiers
 	// (this only checks for values starting with #, not full URLs)
-	if value[0] == '#' {
-		return isValidFragment(value[1:])
+	if trimmedVal[0] == '#' {
+		return isValidFragment(trimmedVal[1:])
 	}
 
 	// Allow directory paths
-	if strings.HasSuffix(value, "/") {
+	if strings.HasSuffix(trimmedVal, "/") {
 		return true
 	}
 
 	// Extract and analyze URL components
-	u, err := url.Parse(value)
+	u, err := url.Parse(trimmedVal)
 	if err != nil {
 		// Fallback to simple path extraction for invalid URLs
-		_, ext := extractExtension(value)
+		_, ext := extractExtension(trimmedVal)
 		return isExtensionAllowed(ext)
+	}
+
+	// Disallow any scheme other than http, https, mailto, tel, file
+	if u.Scheme != "" {
+		scheme := strings.ToLower(u.Scheme)
+		if scheme != "http" && scheme != "https" && scheme != "mailto" && scheme != "tel" && scheme != "file" {
+			return false
+		}
 	}
 
 	// Handle special case: domain-only URLs (e.g., "example.com")

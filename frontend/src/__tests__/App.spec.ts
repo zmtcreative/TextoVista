@@ -135,6 +135,44 @@ describe('App.vue', () => {
     expect(wrapper.find('.frontmatter-section').exists()).toBe(true);
   });
 
+  it('sanitizes malicious markup and event handlers in markdown-rendered payload', async () => {
+    const wrapper = mount(App, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          teleport: true,
+        },
+      },
+    });
+    await waitForRuntimeHandlers();
+    const markdownRendered = runtimeHandlers.get('markdown-rendered');
+
+    const maliciousPayload: MarkdownRenderData = {
+      html: '<p>Safe paragraph</p><script>alert("pwned")</script><img src="x" onerror="alert(1)"><a href="javascript:alert(2)">bad link</a>',
+      title: '<script>alert(3)</script><b>Safe Title</b>',
+      date: '<img src=x onerror=alert(4)>2026-10-18',
+      frontmatter_html: '',
+    };
+
+    markdownRendered!(maliciousPayload);
+    await wrapper.vm.$nextTick();
+
+    const contentHtml = wrapper.get('#content').html();
+    expect(contentHtml).toContain('Safe paragraph');
+    expect(contentHtml).not.toContain('<script>');
+    expect(contentHtml).not.toContain('onerror');
+    expect(contentHtml).not.toContain('javascript:alert');
+
+    const titleHtml = wrapper.get('.document-title').html();
+    expect(titleHtml).not.toContain('<script>');
+    expect(titleHtml).toContain('<b>Safe Title</b>');
+
+    const dateHtml = wrapper.get('.document-dates').html();
+    expect(dateHtml).not.toContain('<img');
+    expect(dateHtml).not.toContain('onerror');
+    expect(dateHtml).toContain('2026-10-18');
+  });
+
   it('responds to theme, help, settings, and error events from the runtime', async () => {
     const wrapper = mount(App, {
       attachTo: document.body,
