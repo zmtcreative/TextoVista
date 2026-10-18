@@ -2,7 +2,7 @@
 Title: TextoVista Markdown Feature Showcase
 Author: TextoVista Team
 Date: 2026-10-18
-DocType: TechDoc
+# DocType: TechDoc
 Tags: [markdown, commonmark, gfm, katex, mermaid, d2]
 ---
 
