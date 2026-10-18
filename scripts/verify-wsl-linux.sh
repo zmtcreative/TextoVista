@@ -62,7 +62,7 @@ else
 fi
 
 frontend_dir="$project_root/frontend"
-go_version="1.27.0"
+go_version="1.27.2"
 node_major_version="24"
 wails_version="v2.16.0"
 changes_made=()
