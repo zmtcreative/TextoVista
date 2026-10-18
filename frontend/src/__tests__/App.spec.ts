@@ -437,4 +437,30 @@ describe('App.vue', () => {
     await wrapper.get('#ext-link').trigger('click');
     expect(runtimeMocks.BrowserOpenURL).toHaveBeenCalledWith('https://example.com/docs');
   });
+
+  it('blocks javascript: links as defense-in-depth', async () => {
+    const wrapper = mount(App, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          teleport: true,
+        },
+      },
+    });
+    await waitForRuntimeHandlers();
+
+    runtimeHandlers.get('markdown-rendered')!({
+      title: 'JS Links Test',
+      html: '<p><a id="js-link" href="javascript:alert(1)">Exploit</a></p>',
+      date: '2026-10-18',
+    });
+    await wrapper.vm.$nextTick();
+
+    runtimeMocks.BrowserOpenURL.mockClear();
+    appApiMocks.LoadAndDisplayMarkdown.mockClear();
+
+    await wrapper.get('#js-link').trigger('click');
+    expect(runtimeMocks.BrowserOpenURL).not.toHaveBeenCalled();
+    expect(appApiMocks.LoadAndDisplayMarkdown).not.toHaveBeenCalled();
+  });
 });

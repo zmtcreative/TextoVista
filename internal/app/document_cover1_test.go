@@ -347,6 +347,7 @@ func TestDocumentProcessorPassesSanitizeSetting(t *testing.T) {
 	}
 
 	cm := newTestConfigManager(t)
+	cm.config.Application.UseInlineHTML = false
 	cm.config.Application.UseSanitize = false
 
 	dp := NewDocumentProcessorWithStyle(context.Background(), cm)

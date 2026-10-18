@@ -159,6 +159,13 @@ function handleLinkClick(e: MouseEvent) {
   const rawHref = link.getAttribute('href');
   if (!rawHref) return;
 
+  // Defense-in-depth: Block javascript: pseudo-protocols
+  if (/^\s*javascript:/i.test(rawHref)) {
+    e.preventDefault();
+    console.warn('Blocked execution of javascript: URL:', rawHref);
+    return;
+  }
+
   // 1. Pure anchor link (e.g. href="#something" or href="#")
   if (rawHref.startsWith('#')) {
     e.preventDefault();

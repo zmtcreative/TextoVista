@@ -234,6 +234,7 @@ func (cm *ConfigManager) loadConfig() {
 		// Use defaults if unmarshal fails
 		cm.config = defaultConfig()
 	}
+	cm.config.Application.UseSanitize = cm.config.Application.UseInlineHTML
 }
 
 // GetConfig returns the current configuration
@@ -249,6 +250,7 @@ func (cm *ConfigManager) SetConfig(newConfig *Config) {
 		return
 	}
 	cm.mu.Lock()
+	newConfig.Application.UseSanitize = newConfig.Application.UseInlineHTML
 	cm.config = newConfig
 	cm.mu.Unlock()
 }
@@ -257,6 +259,8 @@ func (cm *ConfigManager) SetConfig(newConfig *Config) {
 func (cm *ConfigManager) SaveConfig() error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
+
+	cm.config.Application.UseSanitize = cm.config.Application.UseInlineHTML
 
 	// Update viper with current config values for Application section
 	cm.viper.Set("application.use_inline_html", cm.config.Application.UseInlineHTML)
@@ -307,6 +311,7 @@ func (cm *ConfigManager) ApplyCliOverrides(allowInlineHTML, sanitizeHTML, stripH
 
 	if allowInlineHTML != nil {
 		cm.config.Application.UseInlineHTML = *allowInlineHTML
+		cm.config.Application.UseSanitize = *allowInlineHTML
 	}
 	if sanitizeHTML != nil {
 		cm.config.Application.UseSanitize = *sanitizeHTML
@@ -329,7 +334,7 @@ func (cm *ConfigManager) ValidateAlertCalloutStyle(style string) string {
 func (cm *ConfigManager) GetApplicationConfig() (useInlineHTML, useSanitize bool) {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-	return cm.config.Application.UseInlineHTML, cm.config.Application.UseSanitize
+	return cm.config.Application.UseInlineHTML, cm.config.Application.UseInlineHTML
 }
 
 // GetAlertCalloutConfig returns the alert callout style configuration
@@ -349,7 +354,7 @@ func (cm *ConfigManager) UseInlineHTML() bool {
 func (cm *ConfigManager) UseSanitize() bool {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-	return cm.config.Application.UseSanitize
+	return cm.config.Application.UseInlineHTML
 }
 
 func (cm *ConfigManager) UseStripH1() bool {

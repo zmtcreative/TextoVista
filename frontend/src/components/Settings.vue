@@ -79,23 +79,7 @@
                       Allow Inline HTML
                     </label>
                     <p class="setting-description">
-                      Allow raw HTML tags to be rendered in markdown content.<br/><em>(Automatically enables <strong>Sanitize HTML</strong>)</em>
-                    </p>
-                  </div>
-
-                  <!-- Sanitize HTML -->
-                  <div class="setting-group" :class="{ 'disabled-setting': isSanitizeDisabled }">
-                    <label class="checkbox-label">
-                      <input
-                        type="checkbox"
-                        v-model="localSettings.application.use_sanitize_html"
-                        :disabled="isSanitizeDisabled"
-                      />
-                      <span class="checkbox-custom"></span>
-                      Sanitize HTML
-                    </label>
-                    <p class="setting-description">
-                      Remove potentially harmful HTML elements and URLs for safety.<br/><em>(Auto-enabled when <strong>Allow Inline HTML</strong> is enabled)</em>
+                      Allow raw HTML tags to be rendered in markdown content (automatically sanitized for safety).
                     </p>
                   </div>
 
@@ -613,17 +597,9 @@ watch(() => props.show, async (newShow) => {
   }
 });
 
-// Watch for inline HTML changes to enforce security constraint
+// Synchronize sanitization setting with inline HTML setting for backwards compatibility
 watch(() => localSettings.value.application.use_inline_html, (newInlineHTML) => {
-  if (newInlineHTML) {
-    // Automatically enable sanitization when inline HTML is enabled
-    localSettings.value.application.use_sanitize_html = true;
-  }
-});
-
-// Computed property to determine if sanitize checkbox should be disabled
-const isSanitizeDisabled = computed(() => {
-  return localSettings.value.application.use_inline_html;
+  localSettings.value.application.use_sanitize_html = Boolean(newInlineHTML);
 });
 
 // Load current settings and alert callout styles
@@ -665,6 +641,9 @@ async function saveSettings() {
       localSettings.value.application.font_size_mono = parseFloat(localSettings.value.application.font_size_mono as any);
     }
 
+    // Synchronize sanitization with inline HTML
+    localSettings.value.application.use_sanitize_html = Boolean(localSettings.value.application.use_inline_html);
+
     // Create proper Config object before saving
     const configToSave = app.Config.createFrom(localSettings.value);
     await SaveSettings(configToSave);
@@ -694,6 +673,9 @@ async function saveSettingsSessionOnly() {
     if (localSettings.value.application.font_size_mono) {
       localSettings.value.application.font_size_mono = parseFloat(localSettings.value.application.font_size_mono as any);
     }
+
+    // Synchronize sanitization with inline HTML
+    localSettings.value.application.use_sanitize_html = Boolean(localSettings.value.application.use_inline_html);
 
     // Create proper Config object before saving
     const configToSave = app.Config.createFrom(localSettings.value);
