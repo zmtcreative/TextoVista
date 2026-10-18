@@ -6,6 +6,29 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## v0.6.0 - 2026-10-18
+
+This update delivers comprehensive security hardening, concurrency improvements, and enhanced document navigation across the Go backend and Vue frontend. Key architectural refinements strengthen IPC boundaries, prevent directory traversal and file resource exhaustion, and synchronize shared state across configuration, font, and theme managers to eliminate race conditions and resource leaks.
+
+In addition, defense-in-depth HTML sanitization has been implemented using both backend policy rules and frontend `DOMPurify` integration while preserving rich HTML5, SVG diagram, and MathML formula rendering. User experience is further improved with a new navigation history stack and toolbar back button for traversing linked Markdown documents, resolved internal anchor scrolling behavior, and an expanded sample showcase document.
+
+> [!WARNING]
+> This is still **Beta** software! It should be functional for general usage but likely still has bugs, and development is still ongoing.
+
+### CHANGES
+
+- Add: Added document navigation history stack and a toolbar Back button (`frontend/src/components/Toolbar.vue`) to support navigating between linked Markdown files.
+- Add: Added comprehensive backend (`app_test.go`, `internal/app/document_cover1_test.go`, `internal/gm-ext/htmlsanitize/htmlsanitize_test.go`) and frontend (`frontend/src/__tests__/App.spec.ts`) unit and regression test suites covering security boundaries, sanitization, and UI components.
+- Update: Streamlined "Allow Inline HTML" configuration handling (`internal/app/config.go`, `frontend/src/components/Settings.vue`) and refined allowed link and sanitization policies.
+- Update: Tracked `frontend/package-lock.json` for deterministic frontend dependency resolution.
+- Fix: Hardened backend HTML sanitizer (`internal/gm-ext/htmlsanitize/htmlsanitize.go`) to block dangerous tags (`<object>`, `<embed>`, `<applet>`, `<base>`, `<meta>`), strip inline `on*` event attributes, and restrict URI schemes to `http`, `https`, `mailto`, `tel`, and `file`.
+- Fix: Implemented frontend defense-in-depth sanitization with `DOMPurify` across rendered Markdown, document metadata, and frontmatter (`frontend/src/App.vue`, `frontend/src/components/FrontMatter.vue`) while preserving HTML5, SVG diagrams, and MathML formulas.
+- Fix: Enforced IPC filesystem boundary validation in `LoadAndDisplayMarkdown` to restrict relative path traversal, reject binary files, and enforce a 20MB file size limit.
+- Fix: Synchronized `ConfigManager`, `FontManager`, and `ThemeManager` with `sync.RWMutex` and bound file watcher debounce timers to cancellable contexts to prevent concurrent map panics and resource leaks.
+- Fix: Resolved vertical scrolling and rendering issues when following internal document anchor links (`frontend/src/App.vue`, `frontend/src/assets/scss/_main.scss`).
+- CI/CD: Updated the GitHub Actions build and release workflow (`.github/workflows/build.yml`) with concurrency group management to prevent conflicting workflow runs.
+- Docs: Overhauled the embedded and repository sample Markdown showcase documents (`assets/docs/sample.md`, `docs/sample1.md`) with comprehensive feature examples, updated icon assets (`assets/docs/danger-square.svg`), and corrected image paths.
+
 ## v0.5.3 - 2027-10-18
 
 This release marks the official rebranding of the application to **TextoVista** and delivers substantial updates across the runtime environment, dependencies, release automation, Linux packaging, and documentation.
