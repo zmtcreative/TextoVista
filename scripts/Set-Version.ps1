@@ -1014,14 +1014,80 @@ function Invoke-VersionBumpCommit {
     }
 }
 
+function Test-ChangelogEntry {
+    param (
+        [string]$ChangelogPath,
+        [string]$TagName
+    )
+
+    if (-not (Test-Path -Path $ChangelogPath -PathType Leaf)) {
+        return [PSCustomObject]@{
+            Exists     = $false
+            HasEntry   = $false
+            HasContent = $false
+            Message    = "CHANGELOG.md was not found at '$ChangelogPath'."
+        }
+    }
+
+    $lines = Get-Content -Path $ChangelogPath -Encoding utf8
+    $escapedTag = [regex]::Escape($TagName)
+    $headerRegex = "^##\s+\[?$escapedTag\]?(\s+-\s+.*)?$"
+    $start = $null
+    $end = $lines.Count
+
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match $headerRegex) {
+            $start = $i + 1
+            continue
+        }
+        if ($null -ne $start -and $lines[$i] -match '^##\s+') {
+            $end = $i
+            break
+        }
+    }
+
+    if ($null -eq $start) {
+        return [PSCustomObject]@{
+            Exists     = $true
+            HasEntry   = $false
+            HasContent = $false
+            Message    = "No matching section header found for tag '$TagName' in CHANGELOG.md (expected header like '## $TagName - YYYY-MM-DD')."
+        }
+    }
+
+    $bodyLines = if ($start -lt $end) { $lines[$start..($end - 1)] } else { @() }
+    $body = ($bodyLines -join "`n").Trim()
+
+    if ([string]::IsNullOrWhiteSpace($body)) {
+        return [PSCustomObject]@{
+            Exists     = $true
+            HasEntry   = $true
+            HasContent = $false
+            Message    = "Section header for tag '$TagName' was found in CHANGELOG.md, but contains no release notes content."
+        }
+    }
+
+    return [PSCustomObject]@{
+        Exists     = $true
+        HasEntry   = $true
+        HasContent = $true
+        Message    = "Valid release notes entry found for tag '$TagName'."
+    }
+}
+
 function Invoke-TagOperations {
     param (
         [bool]$CreateVersionTag,
         [string]$ProposedTagName,
         [string]$TagMessage,
         [bool]$PushTag,
-        [switch]$NonInteractive
+        [switch]$NonInteractive,
+        [string]$ProjectRoot = ""
     )
+
+    if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
+        $ProjectRoot = $script:ProjectRoot
+    }
 
     $tagToApply = $ProposedTagName
 
@@ -1066,6 +1132,31 @@ function Invoke-TagOperations {
         }
 
         if ($confirmedTag) {
+            # Check CHANGELOG.md for semantic version tags (vX.Y.Z or vX.Y.Z-info1)
+            if ($tagToApply -match '^v\d+\.\d+\.\d+') {
+                $changelogFile = Join-Path $ProjectRoot "CHANGELOG.md"
+                $changelogCheck = Test-ChangelogEntry -ChangelogPath $changelogFile -TagName $tagToApply
+                if (-not ($changelogCheck.HasEntry -and $changelogCheck.HasContent)) {
+                    Write-Host ""
+                    Write-Host -ForegroundColor Red "ERROR: Cannot assign version tag '$tagToApply' because CHANGELOG.md is not up to date."
+                    Write-Host -ForegroundColor Yellow "  $($changelogCheck.Message)"
+                    Write-Host ""
+                    Write-Host -ForegroundColor Yellow "Please update CHANGELOG.md with release notes for '$tagToApply' and commit the change."
+                    Write-Host -ForegroundColor Cyan   "Once CHANGELOG.md is updated, you can create and push the version tag using:"
+                    if ($PushTag) {
+                        Write-Host -ForegroundColor Cyan "  ./scripts/Set-Version.ps1 -CreateVersionTag -CurrentVersion -PushTag"
+                    } else {
+                        Write-Host -ForegroundColor Cyan "  ./scripts/Set-Version.ps1 -CreateVersionTag -CurrentVersion"
+                    }
+                    Write-Host ""
+                    $confirmedTag = $false
+                }
+            } else {
+                Write-Host -ForegroundColor Yellow "  Notice: Proposed tag '$tagToApply' does not use semantic 'vX.Y.Z' format; skipping CHANGELOG.md check."
+            }
+        }
+
+        if ($confirmedTag) {
             $tagMessageToUse = if (-not [string]::IsNullOrWhiteSpace($TagMessage)) {
                 $TagMessage
             } else {
@@ -1091,6 +1182,9 @@ function Invoke-TagOperations {
             } else {
                 Write-Host -ForegroundColor Yellow "  Tag '$tagToApply' exists locally only. (To push to remote, run: git push origin $tagToApply or rerun with -PushTag)."
             }
+            return $true
+        } else {
+            return $false
         }
     } elseif ($PushTag) {
         $latestTag = Get-MostRecentTag
@@ -1313,15 +1407,20 @@ try {
     }
 
     # 14. Tag Handling Logic
-    Invoke-TagOperations `
+    $tagSuccess = Invoke-TagOperations `
         -CreateVersionTag:$CreateVersionTag `
         -ProposedTagName $proposedTagName `
         -TagMessage $TagMessage `
         -PushTag:$PushTag `
-        -NonInteractive:$NonInteractive
+        -NonInteractive:$NonInteractive `
+        -ProjectRoot $ProjectRoot
 
     Write-Host ""
-    Write-Host -ForegroundColor Green "Set-Version completed successfully!"
+    if ($CreateVersionTag -and -not $tagSuccess) {
+        Write-Host -ForegroundColor Yellow "Set-Version finished: Version tag creation was skipped or aborted."
+    } else {
+        Write-Host -ForegroundColor Green "Set-Version completed successfully!"
+    }
     Write-Host ""
 }
 finally {
