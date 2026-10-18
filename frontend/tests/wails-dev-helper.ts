@@ -58,17 +58,24 @@ export class WailsDevHelper {
 
     // Set up process event handlers and capture the dev URL
     await new Promise<void>((resolve, reject) => {
+      let isResolved = false;
+      const outputLogs: string[] = [];
+
       const timeout = setTimeout(() => {
-        reject(new Error('Wails dev failed to start within 60 seconds'));
+        const details = outputLogs.length > 0 ? `\nRecent output:\n${outputLogs.slice(-20).join('\n')}` : '';
+        reject(new Error(`Wails dev failed to start within 60 seconds${details}`));
       }, 60000); // 60 second timeout
 
       this.appProcess.stdout?.on('data', (data: any) => {
-        const output = data.toString().trim();
+        const text = data.toString();
+        outputLogs.push(text.trim());
+        const output = text.trim();
         console.log(`📝 WAILS DEV: ${output}`);
 
         // Look for the browser development URL
         const urlMatch = output.match(/To develop in the browser.*navigate to: (http:\/\/localhost:\d+)/);
-        if (urlMatch) {
+        if (urlMatch && !isResolved) {
+          isResolved = true;
           this.devUrl = urlMatch[1];
           console.log(`🎯 Found Wails dev URL: ${this.devUrl}`);
           clearTimeout(timeout);
@@ -77,12 +84,15 @@ export class WailsDevHelper {
       });
 
       this.appProcess.stderr?.on('data', (data: any) => {
-        const output = data.toString().trim();
+        const text = data.toString();
+        outputLogs.push(`[STDERR] ${text.trim()}`);
+        const output = text.trim();
         console.log(`⚠️ WAILS DEV STDERR: ${output}`);
 
         // Also check stderr for the URL
         const urlMatch = output.match(/To develop in the browser.*navigate to: (http:\/\/localhost:\d+)/);
-        if (urlMatch) {
+        if (urlMatch && !isResolved) {
+          isResolved = true;
           this.devUrl = urlMatch[1];
           console.log(`🎯 Found Wails dev URL in stderr: ${this.devUrl}`);
           clearTimeout(timeout);
@@ -98,10 +108,17 @@ export class WailsDevHelper {
 
       this.appProcess.on('exit', (code: number | null, signal: string | null) => {
         clearTimeout(timeout);
-        if (code !== null && code !== 0) {
-          reject(new Error(`Wails dev exited with code: ${code}`));
+        if (!isResolved) {
+          if (code !== null && code !== 0) {
+            const details = outputLogs.length > 0 ? `\nOutput:\n${outputLogs.join('\n')}` : '';
+            reject(new Error(`Wails dev exited with code: ${code}${details}`));
+          } else if (signal) {
+            reject(new Error(`Wails dev terminated prematurely by signal: ${signal}`));
+          }
         } else if (signal) {
           console.log(`🔚 Wails dev terminated by signal: ${signal}`);
+        } else if (code !== null && code !== 0) {
+          console.log(`🔚 Wails dev process exited with code: ${code}`);
         }
       });
     });
