@@ -504,7 +504,7 @@ TextoVista enforces robust defense-in-depth sanitization on both the Go backend 
 
 The figure extension converts captioned images into semantic `<figure>` and `<figcaption>` elements:
 
-![TextoVista Vector Icon](../assets/icon/svg/texto-vista-icon.svg "TextoVista Application Icon")
+![TextoVista Vector Icon](../icon/svg/texto-vista-icon.svg "TextoVista Application Icon")
 
 ### Images & Embedded Data URIs
 
