@@ -304,7 +304,13 @@ find_linux_binary() {
         return 0
     fi
 
-    find "$PROJECT_ROOT/build/bin" -maxdepth 1 -type f -name 'texto-vista*' \
+    explicit_path="$PROJECT_ROOT/build/bin/textovista"
+    if [[ -f "$explicit_path" ]]; then
+        printf '%s\n' "$explicit_path"
+        return 0
+    fi
+
+    find "$PROJECT_ROOT/build/bin" -maxdepth 1 -type f \( -name 'texto-vista*' -o -name 'textovista*' \) \
         ! -name '*.sha1' ! -name '*.sha256' ! -name '*.tar.gz' ! -name '*.deb' ! -name '*.exe' \
         | sort \
         | head -n 1
@@ -333,13 +339,13 @@ create_tar_package() {
     local stage_dir archive_path
 
     stage_dir="$PROJECT_ROOT/build/package/linux-tar-gz"
-    archive_path="$PROJECT_ROOT/build/bin/texto-vista-${version}-linux-amd64.tar.gz"
+    archive_path="$PROJECT_ROOT/build/bin/textovista-${version}-linux-amd64.tar.gz"
 
     rm -rf "$stage_dir"
     mkdir -p "$stage_dir"
 
-    cp "$binary_path" "$stage_dir/texto-vista"
-    chmod +x "$stage_dir/texto-vista"
+    cp "$binary_path" "$stage_dir/textovista"
+    chmod +x "$stage_dir/textovista"
 
     tar -C "$stage_dir" -czf "$archive_path" .
 
