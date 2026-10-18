@@ -19,7 +19,7 @@
         The commit message for setting the version. Defaults to 'chore(release): bump version to <version>'.
         Alias: -CommitMessage.
     .PARAMETER TagMessage
-        The annotation message for creating the Git tag. Defaults to 'Version: <tag>'.
+        The annotation message for creating the Git tag. Defaults to 'Version: <version>' for SemVer tags (e.g. 'Version: 1.0.0') or 'Version: <tag>' for non-SemVer tags.
     .PARAMETER Bump
         The version segment to increment: 'Patch', 'Minor', 'Major', or 'Prerelease'.
     .PARAMETER IncrementPatch
@@ -94,7 +94,7 @@ param (
     [Alias("CommitMessage")]
     [string]$Message = "",
 
-    [Parameter(HelpMessage = "The tag message for setting the tag. Defaults to 'Version: <tag>'.")]
+    [Parameter(HelpMessage = "The tag message for setting the tag. Defaults to 'Version: <version>' for SemVer tags (or 'Version: <tag>' for non-SemVer tags).")]
     [string]$TagMessage = "",
 
     [Parameter(HelpMessage = "The version segment to increment.")]
@@ -560,6 +560,25 @@ function Format-BuildVersions {
         TagName     = $tagName
         FileVersion = $fileVersion
     }
+}
+
+function Get-DefaultTagMessage {
+    param (
+        [string]$TagName,
+        [string]$CustomMessage = ""
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($CustomMessage)) {
+        return $CustomMessage
+    }
+
+    $parsed = Parse-VersionString -Tag $TagName
+    if ($parsed.IsValid) {
+        $cleanVer = $TagName.Trim() -replace '^[vV]', ''
+        return "Version: $cleanVer"
+    }
+
+    return "Version: $TagName"
 }
 
 function Calculate-NextVersion {
@@ -1201,12 +1220,7 @@ function Invoke-TagOperations {
     $tagToApply = $ProposedTagName
 
     if ($CreateVersionTag) {
-        $tagMessageToUse = if (-not [string]::IsNullOrWhiteSpace($TagMessage)) {
-            $TagMessage
-        }
-        else {
-            "Version: $tagToApply"
-        }
+        $tagMessageToUse = Get-DefaultTagMessage -TagName $tagToApply -CustomMessage $TagMessage
 
         # Prompt user to verify or change the proposed tag
         $confirmedTag = $false
@@ -1318,12 +1332,7 @@ function Invoke-TagOperations {
         }
 
         if ($confirmedTag) {
-            $tagMessageToUse = if (-not [string]::IsNullOrWhiteSpace($TagMessage)) {
-                $TagMessage
-            }
-            else {
-                "Version: $tagToApply"
-            }
+            $tagMessageToUse = Get-DefaultTagMessage -TagName $tagToApply -CustomMessage $TagMessage
             Write-Host -ForegroundColor Cyan "Creating local Git tag: $tagToApply (message: '$tagMessageToUse')"
             git tag -a "$tagToApply" -m "$tagMessageToUse" 2>&1 | Out-Null
             if ($LASTEXITCODE -ne 0) {
@@ -1533,12 +1542,7 @@ try {
         $Message
     }
 
-    $finalTagMessage = if (-not [string]::IsNullOrWhiteSpace($TagMessage)) {
-        $TagMessage
-    }
-    else {
-        "Version: $proposedTagName"
-    }
+    $finalTagMessage = Get-DefaultTagMessage -TagName $proposedTagName -CustomMessage $TagMessage
 
     # 9. Check current branch and push capability
     $branchInfo = Get-GitBranchInfo -NoPush:$NoPush
