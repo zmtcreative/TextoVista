@@ -481,10 +481,10 @@ function Format-BuildVersions {
     $tagName = "v$semver"
 
     # Windows 4-part numeric version: Major.Minor.Patch.Suffix
-    # Final releases use fixed 9000 so they always compare as newer than any prerelease.
+    # Final releases use fixed 65432 so they always compare as newer than any prerelease.
     # Prereleases: alpha -> 1000 + n, beta -> 2000 + n, rc -> 3000 + n
     $stages = @('alpha', 'beta', 'rc')
-    $fileVersionSuffix = 9000
+    $fileVersionSuffix = 65432
     if ($vObj.Prerelease) {
         if ($vObj.Stage) {
             $stageIndex = $stages.IndexOf($vObj.Stage) + 1
