@@ -540,18 +540,24 @@ onMounted(async () => {
   EventsOn('markdown-rendered', (data: MarkdownRenderData) => {
     console.log('Received markdownLoaded event. Updating HTML content.');
     clearTimeout(renderTimeout); // Cancel the timeout since we got the event
-    renderedHTML.value = DOMPurify.sanitize(data.html || '', {
-      USE_PROFILES: { html: true, svg: true, mathMl: true },
-      ADD_ATTR: ['target']
-    });
-    docHTMLTitle.value = DOMPurify.sanitize(data.title || '', {
-      ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'code', 'span'],
-      ALLOWED_ATTR: ['class']
-    });
-    docHTMLDate.value = DOMPurify.sanitize(data.date || '', {
-      ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'code', 'span'],
-      ALLOWED_ATTR: ['class']
-    });
+    if (data.sanitize === false) {
+      renderedHTML.value = data.html || '';
+      docHTMLTitle.value = data.title || '';
+      docHTMLDate.value = data.date || '';
+    } else {
+      renderedHTML.value = DOMPurify.sanitize(data.html || '', {
+        USE_PROFILES: { html: true, svg: true, mathMl: true },
+        ADD_ATTR: ['target']
+      });
+      docHTMLTitle.value = DOMPurify.sanitize(data.title || '', {
+        ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'code', 'span'],
+        ALLOWED_ATTR: ['class']
+      });
+      docHTMLDate.value = DOMPurify.sanitize(data.date || '', {
+        ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'code', 'span'],
+        ALLOWED_ATTR: ['class']
+      });
+    }
     frontmatterHTML.value = data.frontmatter_html || '';
     errorMessage.value = ''; // Clear any previous error message
     // Ensure the DOM is updated before running Mermaid, KaTeX and other updates

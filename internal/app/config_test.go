@@ -441,7 +441,7 @@ func TestConfigManagerMarkdownFeatureGetters(t *testing.T) {
 		want bool
 	}{
 		{name: "UseInlineHTML", got: cm.UseInlineHTML(), want: true},
-		{name: "UseSanitize", got: cm.UseSanitize(), want: true}, // Security constraint: inline HTML requires sanitization
+		{name: "UseSanitize", got: cm.UseSanitize(), want: false},
 		{name: "UseStripH1", got: cm.UseStripH1(), want: true},
 		{name: "UseFrontmatterTitle", got: cm.UseFrontmatterTitle(), want: false},
 		{name: "UseGFM", got: cm.UseGFM(), want: false},

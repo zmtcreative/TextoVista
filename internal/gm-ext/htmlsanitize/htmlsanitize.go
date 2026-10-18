@@ -717,9 +717,13 @@ func isAllowedAttributeValue(value string) bool {
 
 	// Explicitly disallow pseudo-protocols and script execution schemes
 	if strings.HasPrefix(lowerVal, "javascript:") ||
-		strings.HasPrefix(lowerVal, "data:") ||
 		strings.HasPrefix(lowerVal, "vbscript:") {
 		return false
+	}
+
+	// Check data: URIs - allow safe raster image data URIs while blocking unsafe types (html, svg, script)
+	if strings.HasPrefix(lowerVal, "data:") {
+		return isAllowedDataURI(lowerVal)
 	}
 
 	// Allow fragment-only identifiers
@@ -777,6 +781,42 @@ func isAllowedAttributeValue(value string) bool {
 
 	// Check if extension is allowed
 	return isExtensionAllowed(ext)
+}
+
+// isAllowedDataURI checks if a data: URI is a safe raster image
+func isAllowedDataURI(lowerVal string) bool {
+	if !strings.HasPrefix(lowerVal, "data:") {
+		return false
+	}
+
+	// Strictly allow only safe raster image MIME types (png, jpeg, jpg, gif, webp, bmp, ico)
+	// SVG is intentionally excluded from user-provided data URIs because SVG can contain script/XML payloads.
+	allowedPrefixes := []string{
+		"data:image/png;",
+		"data:image/jpeg;",
+		"data:image/jpg;",
+		"data:image/gif;",
+		"data:image/webp;",
+		"data:image/bmp;",
+		"data:image/x-icon;",
+		"data:image/vnd.microsoft.icon;",
+	}
+
+	for _, prefix := range allowedPrefixes {
+		if strings.HasPrefix(lowerVal, prefix) {
+			commaIdx := strings.Index(lowerVal, ",")
+			if commaIdx == -1 {
+				return false
+			}
+			meta := lowerVal[len("data:"):commaIdx]
+			// Ensure metadata only specifies encoding/parameters and no script injection
+			if strings.Contains(meta, "script") || strings.Contains(meta, "javascript") {
+				return false
+			}
+			return true
+		}
+	}
+	return false
 }
 
 // isDomainOnlyURL checks if URL represents a domain only (no path or file)

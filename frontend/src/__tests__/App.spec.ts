@@ -177,6 +177,64 @@ describe('App.vue', () => {
     expect(dateHtml).toContain('2026-10-18');
   });
 
+  it('bypasses DOMPurify sanitization when sanitize is false in markdown-rendered payload', async () => {
+    const wrapper = mount(App, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          teleport: true,
+        },
+      },
+    });
+    await waitForRuntimeHandlers();
+    const markdownRendered = runtimeHandlers.get('markdown-rendered');
+
+    const unsanitizedPayload: MarkdownRenderData = {
+      html: '<p id="custom-element">Custom <span data-custom="123">Content</span></p>',
+      title: '<b>Custom Title</b>',
+      date: '2026-10-18',
+      frontmatter_html: '',
+      sanitize: false,
+    };
+
+    markdownRendered!(unsanitizedPayload);
+    await wrapper.vm.$nextTick();
+
+    const contentHtml = wrapper.get('#content').html();
+    expect(contentHtml).toContain('data-custom="123"');
+    expect(contentHtml).toContain('Custom');
+  });
+
+  it('renders safe image data URIs when sanitize is enabled', async () => {
+    const wrapper = mount(App, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          teleport: true,
+        },
+      },
+    });
+    await waitForRuntimeHandlers();
+    const markdownRendered = runtimeHandlers.get('markdown-rendered');
+
+    const imagePayload: MarkdownRenderData = {
+      html: '<p><img id="png-img" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=" alt="dot"><img id="svg-img" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjwvc3ZnPg==" alt="vector"></p>',
+      title: 'Image Test',
+      date: '2026-10-18',
+      frontmatter_html: '',
+      sanitize: true,
+    };
+
+    markdownRendered!(imagePayload);
+    await wrapper.vm.$nextTick();
+
+    const pngImg = wrapper.get('#png-img');
+    expect(pngImg.attributes('src')).toContain('data:image/png;base64');
+
+    const svgImg = wrapper.get('#svg-img');
+    expect(svgImg.attributes('src')).toContain('data:image/svg+xml;base64');
+  });
+
   it('responds to theme, help, settings, and error events from the runtime', async () => {
     const wrapper = mount(App, {
       attachTo: document.body,
