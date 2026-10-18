@@ -42,7 +42,9 @@
         Finalize a prerelease into a stable release (e.g., 0.5.2-beta1 -> 0.5.2). Alias: -Release.
     .PARAMETER CreateVersionTag
         Create an annotated Git tag locally using the new version from wails.json as the proposed tag.
-        Prompts the user to verify or change the tag name before applying. Alias: -Tag, -CreateTag.
+        Prompts the user to verify or change the tag name before applying. Allows editing to custom or
+        non-SemVer tags (such as 'test-vX.Y.Z') with a warning, skipping CHANGELOG.md verification for
+        non-SemVer tags. Alias: -Tag, -CreateTag.
     .PARAMETER PushTag
         Push the Git tag to the remote repository.
         - If used with -CreateVersionTag: immediately pushes the confirmed tag to remote.
@@ -330,6 +332,15 @@ function Test-GitTagExists {
     return ($found -and ($found -contains $Tag.Trim() -or $found -eq $Tag.Trim()))
 }
 
+function Test-ValidGitTagName {
+    param ([string]$Tag)
+    if ([string]::IsNullOrWhiteSpace($Tag)) { return $false }
+    $trimmed = $Tag.Trim()
+    if ($trimmed -match '^-') { return $false }
+    git check-ref-format --allow-onelevel $trimmed 2>&1 | Out-Null
+    return ($LASTEXITCODE -eq 0)
+}
+
 function Resolve-TagCollision {
     param (
         [string]$TagName,
@@ -364,7 +375,12 @@ function Resolve-TagCollision {
             if ([string]::IsNullOrWhiteSpace($customInput)) {
                 return $null
             }
-            $currentTag = $customInput.Trim()
+            $candidate = $customInput.Trim()
+            if (-not (Test-ValidGitTagName -Tag $candidate)) {
+                Write-Host -ForegroundColor Red "Error: '$candidate' is not a valid Git tag name."
+                continue
+            }
+            $currentTag = $candidate
         }
         else {
             Write-Host -ForegroundColor Yellow "Unrecognized option '$choice'. Defaulting to Quit."
@@ -1219,6 +1235,12 @@ function Invoke-TagOperations {
                         break
                     }
                     $candidateTag = $customTagInput.Trim()
+                    if (-not (Test-ValidGitTagName -Tag $candidateTag)) {
+                        Write-Host ""
+                        Write-Host -ForegroundColor Red "Error: '$candidateTag' is not a valid Git tag name (contains invalid characters or illegal format)."
+                        continue
+                    }
+
                     $parsedTag = Parse-VersionString -Tag $candidateTag
                     if ($parsedTag.IsValid) {
                         $tagToApply = if ($candidateTag -match '^[vV]') { $candidateTag } else { "v$candidateTag" }
@@ -1226,13 +1248,25 @@ function Invoke-TagOperations {
                         $confirmedTag = $true
                     }
                     else {
+                        Write-Host ""
                         if ($parsedTag.HasBuildMetadata) {
-                            Write-Host ""
-                            Write-Host -ForegroundColor Yellow "Warning: Build metadata ('+...') is not permitted in version tags."
+                            Write-Host -ForegroundColor Yellow "Warning: Tag '$candidateTag' contains build metadata ('+...'), which does not match normal project SemVer format."
                         }
                         else {
-                            Write-Host ""
-                            Write-Host -ForegroundColor Red "Error: $($parsedTag.ValidationError)"
+                            Write-Host -ForegroundColor Yellow "Warning: Tag '$candidateTag' does not match normal project SemVer format (e.g., 'vX.Y.Z' or 'vX.Y.Z-rc1')."
+                            if (-not [string]::IsNullOrWhiteSpace($parsedTag.ValidationError)) {
+                                Write-Host -ForegroundColor Yellow "  Details: $($parsedTag.ValidationError)"
+                            }
+                        }
+                        Write-Host -NoNewline -ForegroundColor Cyan "  Use non-SemVer tag '$candidateTag' anyway? [Y]es / [N]o (default: Y): "
+                        $useNonSemVer = Read-Host
+                        if ([string]::IsNullOrWhiteSpace($useNonSemVer) -or $useNonSemVer -imatch '^\s*y(es)?\s*$') {
+                            $tagToApply = $candidateTag
+                            $validTagEntered = $true
+                            $confirmedTag = $true
+                        }
+                        else {
+                            Write-Host -ForegroundColor Yellow "  Tag discarded. Please enter a new tag name."
                         }
                     }
                 }
@@ -1257,7 +1291,8 @@ function Invoke-TagOperations {
 
         if ($confirmedTag) {
             # Check CHANGELOG.md for semantic version tags (vX.Y.Z or vX.Y.Z-prerelease)
-            if ($tagToApply -match '^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)') {
+            $parsedTagForChangelog = Parse-VersionString -Tag $tagToApply
+            if ($parsedTagForChangelog.IsValid) {
                 $changelogFile = Join-Path $ProjectRoot "CHANGELOG.md"
                 $changelogCheck = Test-ChangelogEntry -ChangelogPath $changelogFile -TagName $tagToApply
                 if (-not ($changelogCheck.HasEntry -and $changelogCheck.HasContent)) {
@@ -1278,7 +1313,7 @@ function Invoke-TagOperations {
                 }
             }
             else {
-                Write-Host -ForegroundColor Yellow "  Notice: Proposed tag '$tagToApply' does not use semantic 'vX.Y.Z' format; skipping CHANGELOG.md check."
+                Write-Host -ForegroundColor Yellow "  Notice: Proposed tag '$tagToApply' does not use normal semantic 'vX.Y.Z' format; skipping CHANGELOG.md check."
             }
         }
 
