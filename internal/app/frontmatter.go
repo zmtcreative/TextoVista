@@ -3,9 +3,9 @@ package app
 import (
 	"fmt"
 	"html"
-	"texto-vista/internal/utils"
 	"sort"
 	"strings"
+	"texto-vista/internal/utils"
 )
 
 // Format type constants
@@ -38,7 +38,7 @@ func (f *FrontmatterHTMLFormatter) FormatAsHTML(frontmatter map[string]any) stri
 	//      2. if UseAbbreviations is not set, but frontmatter is present, len(frontmatter) will at least 2 (1 for __FMTYPE__ and at least one actual frontmatter key)
 	//      3. if UseAbbreviations is not set AND there is no frontmatter, len(frontmatter) should be 0
 	//      edge-case: if #2 is true, but frontmatter is all commented out, len(frontmatter) should be 1 (i.e., __FMTYPE__ will still be set)
-    //                 (but since all frontmatter is commented out, technically there is "No frontmatter", so essentially true :smile: )
+	//                 (but since all frontmatter is commented out, technically there is "No frontmatter", so essentially true :smile: )
 	fmlen := len(frontmatter)
 	if _, ok := frontmatter["__ABBR__"]; ok {
 		if fmlen <= 1 {
@@ -82,9 +82,9 @@ func (f *FrontmatterHTMLFormatter) extractAndNormalizeFMType(frontmatter map[str
 func (f *FrontmatterHTMLFormatter) getSortedKeys(frontmatter map[string]any) []string {
 	keys := make([]string, 0, len(frontmatter))
 	for k := range frontmatter {
-		if k == "__FMTYPE__" {  // Ignore frontmatter type key
+		if k == "__FMTYPE__" { // Ignore frontmatter type key
 			continue
-		} else if k == "__ABBR__" {  // Ignore frontmatter abbreviations key
+		} else if k == "__ABBR__" { // Ignore frontmatter abbreviations key
 			continue
 		}
 		keys = append(keys, k)

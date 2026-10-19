@@ -123,17 +123,17 @@ func TestProcessDocumentMetadataEscapesUnsafeTitleSources(t *testing.T) {
 	tempFile := createTempDocumentFile(t)
 
 	tests := []struct {
-		name               string
+		name                string
 		useFrontmatterTitle bool
-		extractedTitle     string
-		frontmatter        map[string]any
-		wantContains       string
-		wantNotContains    string
+		extractedTitle      string
+		frontmatter         map[string]any
+		wantContains        string
+		wantNotContains     string
 	}{
 		{
-			name:               "frontmatter title is escaped",
+			name:                "frontmatter title is escaped",
 			useFrontmatterTitle: true,
-			extractedTitle:     "ignored",
+			extractedTitle:      "ignored",
 			frontmatter: map[string]any{
 				"title": `<img src=x onerror="alert('xss')">`,
 			},
@@ -141,12 +141,12 @@ func TestProcessDocumentMetadataEscapesUnsafeTitleSources(t *testing.T) {
 			wantNotContains: `<img src=x onerror="alert('xss')">`,
 		},
 		{
-			name:               "extracted title is escaped",
+			name:                "extracted title is escaped",
 			useFrontmatterTitle: false,
-			extractedTitle:     `<b>unsafe heading</b>`,
-			frontmatter:        map[string]any{},
-			wantContains:       `&lt;b&gt;unsafe heading&lt;/b&gt;`,
-			wantNotContains:    `<b>unsafe heading</b>`,
+			extractedTitle:      `<b>unsafe heading</b>`,
+			frontmatter:         map[string]any{},
+			wantContains:        `&lt;b&gt;unsafe heading&lt;/b&gt;`,
+			wantNotContains:     `<b>unsafe heading</b>`,
 		},
 	}
 

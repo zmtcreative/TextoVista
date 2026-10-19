@@ -8,31 +8,31 @@ import (
 )
 
 var (
-    errorEventsEmit    = runtime.EventsEmit
-    errorMessageDialog = runtime.MessageDialog
+	errorEventsEmit    = runtime.EventsEmit
+	errorMessageDialog = runtime.MessageDialog
 )
 
 // ErrorHandler centralizes error handling and user notifications
 type ErrorHandler struct {
-    ctx context.Context
+	ctx context.Context
 }
 
 // NewErrorHandler creates a new ErrorHandler
 func NewErrorHandler(ctx context.Context) *ErrorHandler {
-    return &ErrorHandler{ctx: ctx}
+	return &ErrorHandler{ctx: ctx}
 }
 
 // HandleError logs the error and optionally shows it to the user
 func (eh *ErrorHandler) HandleError(err error, userMessage string, showDialog bool) {
-    log.Printf("##> LOG: Error: %v", err)
+	log.Printf("##> LOG: Error: %v", err)
 
-    if showDialog {
-        errorMessageDialog(eh.ctx, runtime.MessageDialogOptions{
-            Type:    runtime.ErrorDialog,
-            Title:   "Error",
-            Message: userMessage,
-        })
-    } else {
-        errorEventsEmit(eh.ctx, "error", userMessage)
-    }
+	if showDialog {
+		errorMessageDialog(eh.ctx, runtime.MessageDialogOptions{
+			Type:    runtime.ErrorDialog,
+			Title:   "Error",
+			Message: userMessage,
+		})
+	} else {
+		errorEventsEmit(eh.ctx, "error", userMessage)
+	}
 }

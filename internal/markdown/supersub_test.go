@@ -28,10 +28,10 @@ func TestSuperSubScriptProcessing(t *testing.T) {
 			wantContains:   []string{"H<sub>2</sub>O", "CO<sub>2</sub>"},
 		},
 		{
-			name:           "strikethrough interoperability with double tildes",
-			input:          "Sub: ~sub~ and Strike: ~~deleted~~",
-			enableSuperSub: true,
-			wantContains:   []string{"<sub>sub</sub>", "<del>deleted</del>"},
+			name:            "strikethrough interoperability with double tildes",
+			input:           "Sub: ~sub~ and Strike: ~~deleted~~",
+			enableSuperSub:  true,
+			wantContains:    []string{"<sub>sub</sub>", "<del>deleted</del>"},
 			wantNotContains: []string{"<sub>deleted</sub>", "<del>sub</del>"},
 		},
 		{
@@ -41,10 +41,10 @@ func TestSuperSubScriptProcessing(t *testing.T) {
 			wantContains:   []string{"C<sub>2</sub>H<sub>4</sub>", "<del>removed item</del>"},
 		},
 		{
-			name:           "superscript and subscript disabled",
-			input:          "Formula: H~2~O, Power: 2^10^, Strike: ~~deleted~~",
-			enableSuperSub: false,
-			wantContains:   []string{"<del>deleted</del>"},
+			name:            "superscript and subscript disabled",
+			input:           "Formula: H~2~O, Power: 2^10^, Strike: ~~deleted~~",
+			enableSuperSub:  false,
+			wantContains:    []string{"<del>deleted</del>"},
 			wantNotContains: []string{"<sub>2</sub>", "<sup>10</sup>"},
 		},
 		{
@@ -95,4 +95,3 @@ func TestSuperSubScriptDocsFile(t *testing.T) {
 		t.Errorf("HTML missing <sup>10</sup> from SUP/SUB section")
 	}
 }
-

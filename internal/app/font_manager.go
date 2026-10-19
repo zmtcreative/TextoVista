@@ -15,40 +15,40 @@ type FontManager struct {
 	knownMonospaceFonts map[string]bool
 	configManager       *ConfigManager
 	// Caching fields for performance
-	fontCache           map[string]bool  // Cache for font existence checks
-	monoCache           map[string]bool  // Cache for monospace detection results
-	systemFontCache     []string         // Cache for system fonts
+	fontCache       map[string]bool // Cache for font existence checks
+	monoCache       map[string]bool // Cache for monospace detection results
+	systemFontCache []string        // Cache for system fonts
 }
 
 // NewFontManager creates a new FontManager
 func NewFontManager(configManager *ConfigManager) *FontManager {
 	return &FontManager{
-		availableFonts: []string{},
-		configManager: configManager,
-		fontCache: make(map[string]bool),
-		monoCache: make(map[string]bool),
+		availableFonts:  []string{},
+		configManager:   configManager,
+		fontCache:       make(map[string]bool),
+		monoCache:       make(map[string]bool),
 		systemFontCache: []string{},
 		knownMonospaceFonts: map[string]bool{
-			"Consolas":                true,
-			"Courier New":             true,
-			"Courier":                 true,
-			"Monaco":                  true,
-			"DejaVu Sans Mono":        true,
-			"Liberation Mono":         true,
-			"Lucida Console":          true,
-			"Menlo":                   true,
-			"Source Code Pro":         true,
-			"Fira Code":              true,
-			"JetBrains Mono":         true,
-			"Cascadia Code":          true,
-			"Ubuntu Mono":            true,
-			"Roboto Mono":            true,
-			"SF Mono":                true,
-			"Inconsolata":            true,
-			"Anonymous Pro":          true,
-			"Hack":                   true,
-			"IBM Plex Mono":          true,
-			"Space Mono":             true,
+			"Consolas":         true,
+			"Courier New":      true,
+			"Courier":          true,
+			"Monaco":           true,
+			"DejaVu Sans Mono": true,
+			"Liberation Mono":  true,
+			"Lucida Console":   true,
+			"Menlo":            true,
+			"Source Code Pro":  true,
+			"Fira Code":        true,
+			"JetBrains Mono":   true,
+			"Cascadia Code":    true,
+			"Ubuntu Mono":      true,
+			"Roboto Mono":      true,
+			"SF Mono":          true,
+			"Inconsolata":      true,
+			"Anonymous Pro":    true,
+			"Hack":             true,
+			"IBM Plex Mono":    true,
+			"Space Mono":       true,
 		},
 	}
 }
@@ -254,7 +254,7 @@ func (fm *FontManager) BasicMonospaceDetection() []string {
 	}
 
 	return fm.deduplicateAndAddFallbacks(monospaceFonts)
-}// AdvancedMonospaceDetection performs more sophisticated monospace font detection
+} // AdvancedMonospaceDetection performs more sophisticated monospace font detection
 func (fm *FontManager) AdvancedMonospaceDetection() []string {
 	allFonts := fm.GetSystemFonts()
 	advancedMonospaceFonts := make([]string, 0)
@@ -607,8 +607,8 @@ func (fm *FontManager) analyzeGenericFontData(data []byte) bool {
 
 	// Check for any monospace-related strings in the font data
 	if strings.Contains(dataStr, "monospace") ||
-	   strings.Contains(dataStr, "fixed") ||
-	   strings.Contains(dataStr, "courier") {
+		strings.Contains(dataStr, "fixed") ||
+		strings.Contains(dataStr, "courier") {
 		return true
 	}
 

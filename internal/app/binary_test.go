@@ -18,87 +18,87 @@ func TestIsBinaryFile(t *testing.T) {
 	tempDir := t.TempDir()
 
 	tests := []struct {
-		name         string
-		content      []byte
-		filename     string
+		name           string
+		content        []byte
+		filename       string
 		expectedBinary bool
 	}{
 		{
-			name:         "empty file",
-			content:      []byte(""),
-			filename:     "empty.txt",
+			name:           "empty file",
+			content:        []byte(""),
+			filename:       "empty.txt",
 			expectedBinary: false,
 		},
 		{
-			name:         "simple text file",
-			content:      []byte("Hello, World!\nThis is a text file."),
-			filename:     "text.txt",
+			name:           "simple text file",
+			content:        []byte("Hello, World!\nThis is a text file."),
+			filename:       "text.txt",
 			expectedBinary: false,
 		},
 		{
-			name:         "markdown file",
-			content:      []byte("# Heading\n\nThis is **markdown** content.\n\n* List item 1\n* List item 2"),
-			filename:     "test.md",
+			name:           "markdown file",
+			content:        []byte("# Heading\n\nThis is **markdown** content.\n\n* List item 1\n* List item 2"),
+			filename:       "test.md",
 			expectedBinary: false,
 		},
 		{
-			name:         "file with null bytes",
-			content:      []byte("Text\x00with\x00null\x00bytes"),
-			filename:     "binary.dat",
+			name:           "file with null bytes",
+			content:        []byte("Text\x00with\x00null\x00bytes"),
+			filename:       "binary.dat",
 			expectedBinary: true,
 		},
 		{
-			name:         "file with many null bytes",
-			content:      append([]byte("Start"), make([]byte, 100)...), // 100 null bytes
-			filename:     "manynulls.dat",
+			name:           "file with many null bytes",
+			content:        append([]byte("Start"), make([]byte, 100)...), // 100 null bytes
+			filename:       "manynulls.dat",
 			expectedBinary: true,
 		},
 		{
-			name:         "file with control characters",
-			content:      []byte("Text\x01\x02\x03\x04\x05\x06\x07\x08control"),
-			filename:     "control.dat",
+			name:           "file with control characters",
+			content:        []byte("Text\x01\x02\x03\x04\x05\x06\x07\x08control"),
+			filename:       "control.dat",
 			expectedBinary: true,
 		},
 		{
-			name:         "file with valid UTF-8",
-			content:      []byte("Hello 世界 🌍 Café naïve résumé"),
-			filename:     "utf8.txt",
+			name:           "file with valid UTF-8",
+			content:        []byte("Hello 世界 🌍 Café naïve résumé"),
+			filename:       "utf8.txt",
 			expectedBinary: false,
 		},
 		{
-			name:         "file with tabs and newlines",
-			content:      []byte("Line 1\nLine 2\n\tIndented line\r\nWindows line ending"),
-			filename:     "whitespace.txt",
+			name:           "file with tabs and newlines",
+			content:        []byte("Line 1\nLine 2\n\tIndented line\r\nWindows line ending"),
+			filename:       "whitespace.txt",
 			expectedBinary: false,
 		},
 		{
-			name:         "JSON file",
-			content:      []byte(`{"name": "test", "value": 123, "array": [1, 2, 3]}`),
-			filename:     "data.json",
+			name:           "JSON file",
+			content:        []byte(`{"name": "test", "value": 123, "array": [1, 2, 3]}`),
+			filename:       "data.json",
 			expectedBinary: false,
 		},
 		{
-			name:         "XML file",
-			content:      []byte(`<?xml version="1.0"?><root><item>value</item></root>`),
-			filename:     "data.xml",
+			name:           "XML file",
+			content:        []byte(`<?xml version="1.0"?><root><item>value</item></root>`),
+			filename:       "data.xml",
 			expectedBinary: false,
 		},
 		{
-			name:         "UTF-16 BOM file",
-			content:      []byte{0xFF, 0xFE, 0x48, 0x00, 0x65, 0x00, 0x6C, 0x00, 0x6C, 0x00, 0x6F, 0x00}, // "Hello" in UTF-16 LE
-			filename:     "utf16.txt",
+			name:           "UTF-16 BOM file",
+			content:        []byte{0xFF, 0xFE, 0x48, 0x00, 0x65, 0x00, 0x6C, 0x00, 0x6C, 0x00, 0x6F, 0x00}, // "Hello" in UTF-16 LE
+			filename:       "utf16.txt",
 			expectedBinary: false, // BOM indicates text file
 		},
 		{
-			name:         "UTF-16 BE BOM file",
-			content:      []byte{0xFE, 0xFF, 0x00, 0x48, 0x00, 0x65, 0x00, 0x6C, 0x00, 0x6C, 0x00, 0x6F}, // "Hello" in UTF-16 BE
-			filename:     "utf16be.txt",
+			name:           "UTF-16 BE BOM file",
+			content:        []byte{0xFE, 0xFF, 0x00, 0x48, 0x00, 0x65, 0x00, 0x6C, 0x00, 0x6C, 0x00, 0x6F}, // "Hello" in UTF-16 BE
+			filename:       "utf16be.txt",
 			expectedBinary: false, // BOM indicates text file
 		},
 		{
-			name:         "very long text line",
-			content:      []byte("This is a very long line of text that keeps going and going without any newlines to test handling of long text content"),
-			filename:     "longline.txt",
+			name:           "very long text line",
+			content:        []byte("This is a very long line of text that keeps going and going without any newlines to test handling of long text content"),
+			filename:       "longline.txt",
 			expectedBinary: false,
 		},
 	}

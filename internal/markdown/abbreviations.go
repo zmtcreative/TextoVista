@@ -9,11 +9,11 @@ import (
 )
 
 // abbreviationDefinitionPattern matches abbreviation definitions
-var abbreviationDefinitionPattern = regexp.MustCompile(`^(?:[\t ]*|\s*[\*\+-]\s+)\*\[([a-zA-Z0-9][^\[\]]+)]:[\t ]+(.+)$`)  // Valid ABBR Pattern
-var abbrInvalidPattern1 = regexp.MustCompile(`^(?:[\t ]*|\s*[\*\+-]\s+)(\*\[(?:[^a-zA-Z0-9][^\[\]]+)]:[\t ]*(?:.+))$`)     // Invalid ABBR Pattern (non-alphanumeric starting character)
-var abbrInvalidPattern2 = regexp.MustCompile(`^(?:[\t ]*|\s*[\*\+-]\s+)(\*\[(?:[^\[\]])]:[\t ]*(?:.+))$`)                  // Invalid ABBR Pattern (cannot have only a single character)
-var abbrInvalidPattern3 = regexp.MustCompile(`^(?:[\t ]*|\s*[\*\+-]\s+)(\*\[(?:[^\[\]]+)]:[^\t ]+(?:.+))$`)                // Invalid ABBR Pattern (no whitespace between `:` and the value)
-var abbrInvalidPattern4 = regexp.MustCompile(`^(?:[\t ]*|\s*[\*\+-]\s+)\*\[(.*(?:\[*[^\]\[]*\])+.*)]:[\t ]+(.+)$`)          // Invalid ABBR Pattern (no nested brackets)
+var abbreviationDefinitionPattern = regexp.MustCompile(`^(?:[\t ]*|\s*[\*\+-]\s+)\*\[([a-zA-Z0-9][^\[\]]+)]:[\t ]+(.+)$`) // Valid ABBR Pattern
+var abbrInvalidPattern1 = regexp.MustCompile(`^(?:[\t ]*|\s*[\*\+-]\s+)(\*\[(?:[^a-zA-Z0-9][^\[\]]+)]:[\t ]*(?:.+))$`)    // Invalid ABBR Pattern (non-alphanumeric starting character)
+var abbrInvalidPattern2 = regexp.MustCompile(`^(?:[\t ]*|\s*[\*\+-]\s+)(\*\[(?:[^\[\]])]:[\t ]*(?:.+))$`)                 // Invalid ABBR Pattern (cannot have only a single character)
+var abbrInvalidPattern3 = regexp.MustCompile(`^(?:[\t ]*|\s*[\*\+-]\s+)(\*\[(?:[^\[\]]+)]:[^\t ]+(?:.+))$`)               // Invalid ABBR Pattern (no whitespace between `:` and the value)
+var abbrInvalidPattern4 = regexp.MustCompile(`^(?:[\t ]*|\s*[\*\+-]\s+)\*\[(.*(?:\[*[^\]\[]*\])+.*)]:[\t ]+(.+)$`)        // Invalid ABBR Pattern (no nested brackets)
 
 func GetMarkdownAbbreviations(markdown []byte) (map[string]string, []byte) {
 	// Extract abbreviation definitions from the markdown

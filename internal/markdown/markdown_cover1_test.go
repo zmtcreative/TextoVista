@@ -32,6 +32,7 @@ type markdownTestConfig struct {
 	useD2                 bool
 	useSuperSubScript     bool
 	useInlineHighlighting bool
+	useTextInsertion      bool
 	useAlertCallouts      bool
 	alertStyle            string
 }
@@ -59,6 +60,7 @@ func defaultMarkdownTestConfig() markdownTestConfig {
 		useD2:                 true,
 		useSuperSubScript:     true,
 		useInlineHighlighting: true,
+		useTextInsertion:      true,
 		useAlertCallouts:      true,
 		alertStyle:            "GFMPlus",
 	}
@@ -89,6 +91,7 @@ func (c markdownTestConfig) UseKatex() bool                { return c.useKatex }
 func (c markdownTestConfig) UseD2Diagrams() bool           { return c.useD2 }
 func (c markdownTestConfig) UseSuperSubScript() bool       { return c.useSuperSubScript }
 func (c markdownTestConfig) UseInlineHighlighting() bool   { return c.useInlineHighlighting }
+func (c markdownTestConfig) UseTextInsertion() bool        { return c.useTextInsertion }
 func (c markdownTestConfig) UseAlertCallouts() bool        { return c.useAlertCallouts }
 func (c markdownTestConfig) AlertCalloutStyle() string     { return c.alertStyle }
 
@@ -267,6 +270,22 @@ func TestCreateGoldmarkInstanceFeatureMatrix(t *testing.T) {
 			}(),
 			input:           "This is ==highlighted text== in markdown.",
 			wantNotContains: []string{"<mark>"},
+		},
+		{
+			name:         "text insertion enabled renders ins tags",
+			cfg:          defaultMarkdownTestConfig(),
+			input:        "This is ++inserted text++ in markdown.",
+			wantContains: []string{"<ins>inserted text</ins>"},
+		},
+		{
+			name: "text insertion disabled does not render ins tags",
+			cfg: func() markdownTestConfig {
+				cfg := defaultMarkdownTestConfig()
+				cfg.useTextInsertion = false
+				return cfg
+			}(),
+			input:           "This is ++inserted text++ in markdown.",
+			wantNotContains: []string{"<ins>"},
 		},
 	}
 

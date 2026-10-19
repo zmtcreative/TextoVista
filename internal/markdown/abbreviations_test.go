@@ -73,7 +73,7 @@ listed and the second line will be ignored and rendered as normal text`,
 </ul>`,
 		},
 		{
-			name: "No abbreviations defined",
+			name:     "No abbreviations defined",
 			markdown: `This is just plain text with no abbreviations.`,
 			expected: `<p>This is just plain text with no abbreviations.</p>`,
 		},
@@ -231,10 +231,10 @@ func TestAbbreviationRegexPatterns(t *testing.T) {
 
 func TestAbbreviationExtraction(t *testing.T) {
 	tests := []struct {
-		name               string
-		markdown           string
+		name                string
+		markdown            string
 		expectedDefinitions map[string]string
-		expectedCleanText  string
+		expectedCleanText   string
 	}{
 		{
 			name: "Basic abbreviation extraction",

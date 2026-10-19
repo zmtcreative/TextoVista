@@ -62,6 +62,7 @@ export namespace app {
 	    use_d2_diagrams: boolean;
 	    use_supersubscript: boolean;
 	    use_inline_highlighting: boolean;
+	    use_text_insertion: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new MarkdownOptions(source);
@@ -86,6 +87,7 @@ export namespace app {
 	        this.use_d2_diagrams = source["use_d2_diagrams"];
 	        this.use_supersubscript = source["use_supersubscript"];
 	        this.use_inline_highlighting = source["use_inline_highlighting"];
+	        this.use_text_insertion = source["use_text_insertion"];
 	    }
 	}
 	export class Config {

@@ -35,8 +35,8 @@ func TestCleanupHTMLContent(t *testing.T) {
 			expected: "<pre>\r\n<code>value</code></pre>",
 		},
 		{
-			name:     "code content starts immediately after inserted CRLF",
-			input:    `<pre><code>
+			name: "code content starts immediately after inserted CRLF",
+			input: `<pre><code>
 value</code></pre>`,
 			expected: "<pre>\r\n<code>value</code></pre>",
 		},

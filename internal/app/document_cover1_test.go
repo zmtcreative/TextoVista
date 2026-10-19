@@ -191,8 +191,8 @@ func TestDocumentProcessorLoadAndDisplayMarkdownHandlesUTF16Input(t *testing.T) 
 			}
 
 			finalPayload := payloads[1]
-				if finalPayload.Title == "" {
-					t.Fatal("final payload title is empty")
+			if finalPayload.Title == "" {
+				t.Fatal("final payload title is empty")
 			}
 			if strings.Contains(finalPayload.HTML, "Visible Heading") {
 				t.Fatalf("final payload HTML still contains stripped H1: %q", finalPayload.HTML)
@@ -203,8 +203,8 @@ func TestDocumentProcessorLoadAndDisplayMarkdownHandlesUTF16Input(t *testing.T) 
 			if !strings.Contains(finalPayload.Date, "Last Modified:") {
 				t.Fatalf("final payload Date missing last-modified date: %q", finalPayload.Date)
 			}
-				if !strings.Contains(finalPayload.FrontmatterHTML, "No ACTIVE frontmatter") {
-					t.Fatalf("final payload FrontmatterHTML = %q, want commented-out frontmatter placeholder", finalPayload.FrontmatterHTML)
+			if !strings.Contains(finalPayload.FrontmatterHTML, "No ACTIVE frontmatter") {
+				t.Fatalf("final payload FrontmatterHTML = %q, want commented-out frontmatter placeholder", finalPayload.FrontmatterHTML)
 			}
 		})
 	}

@@ -12,10 +12,10 @@ import (
 	utils "texto-vista/internal/utils"
 
 	// "texto-vista/internal/gm-ext/sectionwrapper"
-	alertcallouts "github.com/zmtcreative/gm-alert-callouts"
-	sectionwrapper "github.com/zmtcreative/gm-sectionwrapper"
 	"github.com/d2lang/d2/d2layouts/d2elklayout"
 	"github.com/d2lang/d2/d2themes/d2themescatalog"
+	alertcallouts "github.com/zmtcreative/gm-alert-callouts"
+	sectionwrapper "github.com/zmtcreative/gm-sectionwrapper"
 
 	chromahtml "github.com/alecthomas/chroma/v2/formatters/html"
 	figure "github.com/mangoumbrella/goldmark-figure"
@@ -24,10 +24,10 @@ import (
 	d2diagrams "github.com/FurqanSoftware/goldmark-d2"
 	katex "github.com/kingreatwill/goldmark-katex/v2"
 
+	supersub "github.com/bowman2001/goldmark-supersubscript"
 	blockattr "github.com/mdigger/goldmark-attributes"
 	bracketedspan "github.com/nemunaire/goldmark-inline-attributes"
 	fences "github.com/stefanfritsch/goldmark-fences"
-	supersub "github.com/bowman2001/goldmark-supersubscript"
 	"github.com/yuin/goldmark"
 	emoji "github.com/yuin/goldmark-emoji"
 	highlighting "github.com/yuin/goldmark-highlighting/v2"
@@ -38,10 +38,11 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
+	texthighlight "github.com/zuern/goldmark-highlight"
 	"go.abhg.dev/goldmark/anchor"
 	"go.abhg.dev/goldmark/frontmatter"
 	mermaid "go.abhg.dev/goldmark/mermaid"
-	texthighlight "github.com/zuern/goldmark-highlight"
+	"texto-vista/internal/gm-ext/insertion"
 	"texto-vista/internal/gm-ext/shortcuts"
 )
 
@@ -56,63 +57,63 @@ const (
 	ALERT_OBSIDIAN
 )
 
-
 var GlobalAttributeFilter = util.NewBytesFilterString(`accesskey,autocapitalize,autofocus,class,contenteditable,dir,draggable,enterkeyhint,hidden,id,inert,inputmode,is,itemid,itemprop,itemref,itemscope,itemtype,lang,part,role,slot,spellcheck,style,tabindex,title,translate`) // nolint:lll
 var CodeBlockAttributeFilter = GlobalAttributeFilter.ExtendString(`nolabel,nolable,label,lable`)
 var dataPrefix = []byte("data-")
 
 // ConfigProvider interface to avoid circular imports
 type ConfigProvider interface {
-    // Legacy methods for backward compatibility
-    GetApplicationConfig() (useInlineHTML, useSanitize bool)
-    GetAlertCalloutConfig() string
+	// Legacy methods for backward compatibility
+	GetApplicationConfig() (useInlineHTML, useSanitize bool)
+	GetAlertCalloutConfig() string
 
-    // Application-specific configuration getters
-    UseInlineHTML() bool
-    UseSanitize() bool
-    UseStripH1() bool
-    UseFrontmatterTitle() bool
+	// Application-specific configuration getters
+	UseInlineHTML() bool
+	UseSanitize() bool
+	UseStripH1() bool
+	UseFrontmatterTitle() bool
 
-    // Markdown-specific configuration getters
-    UseGFM() bool
+	// Markdown-specific configuration getters
+	UseGFM() bool
 	UsePHPMDExt() bool
-    UseEmoji() bool
-    UseMermaid() bool
-    UseFigure() bool
-    UseAnchor() bool
-    UseFences() bool
-    UseSections() bool
-    UseHighlighting() bool
-    UseFancyLists() bool
-    UseAttributes() bool
-    UseTypographic() bool
+	UseEmoji() bool
+	UseMermaid() bool
+	UseFigure() bool
+	UseAnchor() bool
+	UseFences() bool
+	UseSections() bool
+	UseHighlighting() bool
+	UseFancyLists() bool
+	UseAttributes() bool
+	UseTypographic() bool
 	UseAbbreviations() bool
 	UseKatex() bool
 	UseD2Diagrams() bool
 	UseSuperSubScript() bool
 	UseInlineHighlighting() bool
+	UseTextInsertion() bool
 
-    // Alert callouts configuration getters
-    UseAlertCallouts() bool
-    AlertCalloutStyle() string
+	// Alert callouts configuration getters
+	UseAlertCallouts() bool
+	AlertCalloutStyle() string
 }
 
 // CreateGoldmarkInstance creates and configures a new Goldmark instance.
 func CreateGoldmarkInstance(configProvider ConfigProvider) goldmark.Markdown {
-    // Select alert callout icons based on style
-    alertIconID := ALERT_NOICONS
-    switch configProvider.AlertCalloutStyle() {
+	// Select alert callout icons based on style
+	alertIconID := ALERT_NOICONS
+	switch configProvider.AlertCalloutStyle() {
 	case "GFMStrict":
 		alertIconID = ALERT_GFM_STRICT
-    case "GFMWithAliases":
-        alertIconID = ALERT_GFM_WITH_ALIASES
-    case "GFMPlus":
-        alertIconID = ALERT_GFM_PLUS
-    case "Obsidian":
-        alertIconID = ALERT_OBSIDIAN
-    default:
-        alertIconID = ALERT_GFM_STRICT // Default to Strict GFM
-    }
+	case "GFMWithAliases":
+		alertIconID = ALERT_GFM_WITH_ALIASES
+	case "GFMPlus":
+		alertIconID = ALERT_GFM_PLUS
+	case "Obsidian":
+		alertIconID = ALERT_OBSIDIAN
+	default:
+		alertIconID = ALERT_GFM_STRICT // Default to Strict GFM
+	}
 
 	// Initialize Goldmark options with bare defaults
 	options := []goldmark.Option{
@@ -203,7 +204,7 @@ func CreateGoldmarkInstance(configProvider ConfigProvider) goldmark.Markdown {
 			goldmark.WithExtensions(
 				&anchor.Extender{
 					Position: anchor.After,
-					Texter: anchor.Text("#"),
+					Texter:   anchor.Text("#"),
 				},
 			),
 		)
@@ -239,8 +240,8 @@ func CreateGoldmarkInstance(configProvider ConfigProvider) goldmark.Markdown {
 					highlighting.WithFormatOptions(
 						chromahtml.WithClasses(false),
 						chromahtml.PreventSurroundingPre(true), // Let WithWrapperRenderer handle the <pre> tag
-						chromahtml.WithAllClasses(false),      // Use all classes for syntax highlighting
-						chromahtml.Standalone(true),           // Set to false to prevent a full HTML document
+						chromahtml.WithAllClasses(false),       // Use all classes for syntax highlighting
+						chromahtml.Standalone(true),            // Set to false to prevent a full HTML document
 					),
 				),
 			),
@@ -293,21 +294,21 @@ func CreateGoldmarkInstance(configProvider ConfigProvider) goldmark.Markdown {
 	//               The load order seems to matter here. Something to debug later.
 	//
 	//               THIS ordering seems to be working properly for now.
-    if configProvider.UseSanitize() {
-        options = append(options,
-            goldmark.WithExtensions(
-                htmlsanitize.NewSanitizeHTMLExtension(), // Custom extension to sanitize HTML
-            ),
-        )
-    }
+	if configProvider.UseSanitize() {
+		options = append(options,
+			goldmark.WithExtensions(
+				htmlsanitize.NewSanitizeHTMLExtension(), // Custom extension to sanitize HTML
+			),
+		)
+	}
 
 	// Enable Attributes extensions if configured (to use {.myclass #myid} attribute syntax)
 	if configProvider.UseAttributes() {
 		options = append(options,
 			goldmark.WithParserOptions(
-				parser.WithAttribute(),     // Enable attributes for nodes
+				parser.WithAttribute(), // Enable attributes for nodes
 			),
-			blockattr.Enable, // Enable block attributes
+			blockattr.Enable,     // Enable block attributes
 			bracketedspan.Enable, // Enable bracketed span
 		)
 	}
@@ -325,9 +326,9 @@ func CreateGoldmarkInstance(configProvider ConfigProvider) goldmark.Markdown {
 			goldmark.WithExtensions(
 				&d2diagrams.Extender{
 					// Layout: d2dagrelayout.DefaultLayout,
-					Layout: d2elklayout.DefaultLayout,
+					Layout:  d2elklayout.DefaultLayout,
 					ThemeID: &d2themescatalog.CoolClassics.ID,
-					Sketch: false,
+					Sketch:  false,
 				},
 			),
 		)
@@ -363,7 +364,16 @@ func CreateGoldmarkInstance(configProvider ConfigProvider) goldmark.Markdown {
 		)
 	}
 
-    return goldmark.New(options...)
+	// Enable Text Insertion (++text++) if configured
+	if configProvider.UseTextInsertion() {
+		options = append(options,
+			goldmark.WithExtensions(
+				insertion.NewExtender(),
+			),
+		)
+	}
+
+	return goldmark.New(options...)
 }
 
 // singleTildeSubscriptParser wraps the goldmark-supersubscript subscript parser
@@ -392,12 +402,11 @@ func (s *singleTildeSubscriptParser) Parse(parent ast.Node, block text.Reader, p
 // ConvertMarkdownToHTML converts a byte slice of Markdown content into HTML.
 // Returns: the HTML content ([]byte), frontmatter metadata (map[string]any), and any conversion error (error).
 func ConvertMarkdownToHTML(mdConverter goldmark.Markdown, markdown []byte, configProvider ConfigProvider) ([]byte, map[string]any, string, error) {
-    var buf strings.Builder
+	var buf strings.Builder
 	// Get the frontmatter data and place it in meta
 	root := mdConverter.Parser().Parse(text.NewReader(markdown))
 	doc := root.OwnerDocument()
 	meta := doc.Meta()
-
 
 	// Strip comments from frontmatter before rendering
 	// Note to Self: The frontmatter extension handles parsing comments in frontmatter just fine,
@@ -407,14 +416,14 @@ func ConvertMarkdownToHTML(mdConverter goldmark.Markdown, markdown []byte, confi
 	//               Convert() calls.
 	mdContent, fmType := stripCommentsFromFrontmatter(markdown)
 
-    // Extract the document title from the H1 heading element if present
-    // We're doing this before converting, so we can use the Goldmark Parser to find the first '# Title'
-    var thisDocumentH1Title, _ = ExtractH1(string(mdContent))
+	// Extract the document title from the H1 heading element if present
+	// We're doing this before converting, so we can use the Goldmark Parser to find the first '# Title'
+	var thisDocumentH1Title, _ = ExtractH1(string(mdContent))
 
-    // Clean up the title by removing extra whitespace and line breaks
-    thisDocumentH1Title = strings.ReplaceAll(thisDocumentH1Title, "\n", " ")
-    // Replace multiple whitespace characters with a single space using regex
-    thisDocumentH1Title = regexp.MustCompile(`\s+`).ReplaceAllString(thisDocumentH1Title, " ")
+	// Clean up the title by removing extra whitespace and line breaks
+	thisDocumentH1Title = strings.ReplaceAll(thisDocumentH1Title, "\n", " ")
+	// Replace multiple whitespace characters with a single space using regex
+	thisDocumentH1Title = regexp.MustCompile(`\s+`).ReplaceAllString(thisDocumentH1Title, " ")
 
 	// If UseAbbreviations is enabled, get the abbreviation definitions from the markdown
 	abbrDefs := make(map[string]string)
@@ -429,10 +438,10 @@ func ConvertMarkdownToHTML(mdConverter goldmark.Markdown, markdown []byte, confi
 	//               variable with the Renderer() function here, since the source
 	//               now doesn't match the AST in 'root' anymore.
 	err := mdConverter.Convert(mdContent, &buf)
-    if err != nil {
-        return nil, nil, "", err
-    }
-    html := buf.String()
+	if err != nil {
+		return nil, nil, "", err
+	}
+	html := buf.String()
 	meta, _ = utils.NormalizeMapKeys(meta) // Normalize keys to lowercase
 
 	// Add custom keys AFTER nomalizing -- only actual frontmatter keys should be lowercased
@@ -441,47 +450,47 @@ func ConvertMarkdownToHTML(mdConverter goldmark.Markdown, markdown []byte, confi
 		meta["__ABBR__"] = abbrDefs
 	}
 
-    return []byte(html), meta, thisDocumentH1Title, nil
+	return []byte(html), meta, thisDocumentH1Title, nil
 }
 
 // ExtractH1 finds the first H1 heading from Markdown source.
 // func ExtractH1(md string) (string, []byte, error) {
 func ExtractH1(md string) (string, error) {
-    source := []byte(md)
-    mdParser := goldmark.DefaultParser()
-    reader := text.NewReader(source)
-    doc := mdParser.Parse(reader)
+	source := []byte(md)
+	mdParser := goldmark.DefaultParser()
+	reader := text.NewReader(source)
+	doc := mdParser.Parse(reader)
 
-    var h1Node *ast.Heading
-    ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-        if !entering || h1Node != nil {
-            return ast.WalkContinue, nil
-        }
-        if heading, ok := n.(*ast.Heading); ok && heading.Level == 1 {
-            h1Node = heading
-            return ast.WalkStop, nil
-        }
-        return ast.WalkContinue, nil
-    })
+	var h1Node *ast.Heading
+	ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering || h1Node != nil {
+			return ast.WalkContinue, nil
+		}
+		if heading, ok := n.(*ast.Heading); ok && heading.Level == 1 {
+			h1Node = heading
+			return ast.WalkStop, nil
+		}
+		return ast.WalkContinue, nil
+	})
 
-    if h1Node == nil {
-        return "", nil
-    }
+	if h1Node == nil {
+		return "", nil
+	}
 
-    title := ExtractTextContent(h1Node, source)
-    if strings.TrimSpace(title) == "" {
-        return title, nil
-    }
+	title := ExtractTextContent(h1Node, source)
+	if strings.TrimSpace(title) == "" {
+		return title, nil
+	}
 
-    // modifiedSource := RemoveNodeFromSource(source, h1Node)
-    return title, nil
+	// modifiedSource := RemoveNodeFromSource(source, h1Node)
+	return title, nil
 }
 
 func highlightingCustomWrapperRenderer(w util.BufWriter, c highlighting.CodeBlockContext, entering bool) {
 	if entering {
 		lang, _ := c.Language()
 		lang = getLanguageByAlias(lang)
-        // Add language class to the <pre> tag
+		// Add language class to the <pre> tag
 		fmt.Fprintf(w, `<pre language="%s"`, lang)
 		if c.Attributes() != nil {
 			renderCodeBlockAttributes(w, c, CodeBlockAttributeFilter)
@@ -506,10 +515,10 @@ func renderCodeBlockAttributes(w util.BufWriter, c highlighting.CodeBlockContext
 		_, _ = w.WriteString(`="`)
 		var value []byte
 		switch typed := attr.Value.(type) {
-			case []byte:
-				value = typed
-			case string:
-				value = util.StringToReadOnlyBytes(typed)
+		case []byte:
+			value = typed
+		case string:
+			value = util.StringToReadOnlyBytes(typed)
 		}
 		_, _ = w.Write(util.EscapeHTML(value))
 		_ = w.WriteByte('"')
@@ -534,33 +543,33 @@ func ExtractTextContent(n ast.Node, source []byte) string {
 }
 
 func RemoveNodeFromSource(source []byte, node ast.Node) string {
-    lines := node.Lines()
-    if lines.Len() == 0 {
-        return string(source)
-    }
+	lines := node.Lines()
+	if lines.Len() == 0 {
+		return string(source)
+	}
 
-    // Get the full range from first line start to last line end
-    firstLine := lines.At(0)
-    lastLine := lines.At(lines.Len() - 1)
+	// Get the full range from first line start to last line end
+	firstLine := lines.At(0)
+	lastLine := lines.At(lines.Len() - 1)
 
-    // Find the actual start of the line (including any preceding whitespace and # markers)
-    start := firstLine.Start
-    // Go backwards to find the beginning of the line
-    for start > 0 && source[start-1] != '\n' && source[start-1] != '\r' {
-        start--
-    }
+	// Find the actual start of the line (including any preceding whitespace and # markers)
+	start := firstLine.Start
+	// Go backwards to find the beginning of the line
+	for start > 0 && source[start-1] != '\n' && source[start-1] != '\r' {
+		start--
+	}
 
-    end := lastLine.Stop
+	end := lastLine.Stop
 
-    // Extend removal range to include trailing newline if present
-    if end < len(source) && source[end] == '\n' {
-        end++
-    } else if end < len(source)-1 && source[end] == '\r' && source[end+1] == '\n' {
-        end += 2
-    }
+	// Extend removal range to include trailing newline if present
+	if end < len(source) && source[end] == '\n' {
+		end++
+	} else if end < len(source)-1 && source[end] == '\r' && source[end+1] == '\n' {
+		end += 2
+	}
 
-    // Remove the node's segment from the source
-    return string(source[:start]) + string(source[end:])
+	// Remove the node's segment from the source
+	return string(source[:start]) + string(source[end:])
 }
 
 func InitAlertCalloutsIcons(icondata string) map[string]string {
@@ -621,7 +630,7 @@ func InitAlertCalloutsIcons(icondata string) map[string]string {
 }
 
 type CodeLanguage struct {
-	Name string
+	Name    string
 	Aliases []string // Aliases for the language
 }
 
@@ -672,88 +681,88 @@ func getLanguageByAlias(language []byte) []byte {
 
 // stripCommentsFromFrontmatter removes comment lines (starting with #) from frontmatter
 func stripCommentsFromFrontmatter(mdContent []byte) ([]byte, string) {
-    content := string(mdContent)
-    lines := strings.Split(content, "\n")
+	content := string(mdContent)
+	lines := strings.Split(content, "\n")
 
-    var result strings.Builder
-    var frontmatterDelimiter string
-    inFrontmatter := false
-    frontmatterStarted := false
+	var result strings.Builder
+	var frontmatterDelimiter string
+	inFrontmatter := false
+	frontmatterStarted := false
 	fmType := ""
 
-    for i, line := range lines {
-        trimmedLine := strings.TrimSpace(line)
+	for i, line := range lines {
+		trimmedLine := strings.TrimSpace(line)
 
-        // Check if we're still in the preamble (only blank lines allowed before frontmatter)
-        if !frontmatterStarted && !inFrontmatter {
-            // If this is a blank line, keep it and continue
-            if trimmedLine == "" {
-                result.WriteString(line)
-                if i < len(lines)-1 {
-                    result.WriteString("\n")
-                }
-                continue
-            }
+		// Check if we're still in the preamble (only blank lines allowed before frontmatter)
+		if !frontmatterStarted && !inFrontmatter {
+			// If this is a blank line, keep it and continue
+			if trimmedLine == "" {
+				result.WriteString(line)
+				if i < len(lines)-1 {
+					result.WriteString("\n")
+				}
+				continue
+			}
 
-            // Check if this line starts frontmatter
-            if strings.HasPrefix(trimmedLine, "---") && len(trimmedLine) >= 3 && strings.Trim(trimmedLine, "-") == "" {
-                frontmatterDelimiter = trimmedLine
-                frontmatterStarted = true
-                inFrontmatter = true
+			// Check if this line starts frontmatter
+			if strings.HasPrefix(trimmedLine, "---") && len(trimmedLine) >= 3 && strings.Trim(trimmedLine, "-") == "" {
+				frontmatterDelimiter = trimmedLine
+				frontmatterStarted = true
+				inFrontmatter = true
 				fmType = "YAML"
-                result.WriteString(line)
-                if i < len(lines)-1 {
-                    result.WriteString("\n")
-                }
-                continue
-            } else if strings.HasPrefix(trimmedLine, "+++") && len(trimmedLine) >= 3 && strings.Trim(trimmedLine, "+") == "" {
-                frontmatterDelimiter = trimmedLine
-                frontmatterStarted = true
-                inFrontmatter = true
-                fmType = "TOML"
-                result.WriteString(line)
-                if i < len(lines)-1 {
-                    result.WriteString("\n")
-                }
-                continue
-            } else {
-                // No frontmatter detected, this is regular content
-                // Add all remaining content as-is
-                result.WriteString(strings.Join(lines[i:], "\n"))
-                break
-            }
-        }
+				result.WriteString(line)
+				if i < len(lines)-1 {
+					result.WriteString("\n")
+				}
+				continue
+			} else if strings.HasPrefix(trimmedLine, "+++") && len(trimmedLine) >= 3 && strings.Trim(trimmedLine, "+") == "" {
+				frontmatterDelimiter = trimmedLine
+				frontmatterStarted = true
+				inFrontmatter = true
+				fmType = "TOML"
+				result.WriteString(line)
+				if i < len(lines)-1 {
+					result.WriteString("\n")
+				}
+				continue
+			} else {
+				// No frontmatter detected, this is regular content
+				// Add all remaining content as-is
+				result.WriteString(strings.Join(lines[i:], "\n"))
+				break
+			}
+		}
 
-        // We are inside frontmatter
-        if inFrontmatter {
-            // Check if this is the closing delimiter
-            if trimmedLine == frontmatterDelimiter {
-                inFrontmatter = false
-                result.WriteString(line)
-                if i < len(lines)-1 {
-                    result.WriteString("\n")
-                }
-                continue
-            }
+		// We are inside frontmatter
+		if inFrontmatter {
+			// Check if this is the closing delimiter
+			if trimmedLine == frontmatterDelimiter {
+				inFrontmatter = false
+				result.WriteString(line)
+				if i < len(lines)-1 {
+					result.WriteString("\n")
+				}
+				continue
+			}
 
-            // Skip lines that start with # (comments)
-            if strings.HasPrefix(trimmedLine, "#") {
-                continue
-            }
+			// Skip lines that start with # (comments)
+			if strings.HasPrefix(trimmedLine, "#") {
+				continue
+			}
 
-            // Keep non-comment lines
-            result.WriteString(line)
-            if i < len(lines)-1 {
-                result.WriteString("\n")
-            }
-        } else {
-            // We're past the frontmatter, add everything as-is
-            result.WriteString(line)
-            if i < len(lines)-1 {
-                result.WriteString("\n")
-            }
-        }
-    }
+			// Keep non-comment lines
+			result.WriteString(line)
+			if i < len(lines)-1 {
+				result.WriteString("\n")
+			}
+		} else {
+			// We're past the frontmatter, add everything as-is
+			result.WriteString(line)
+			if i < len(lines)-1 {
+				result.WriteString("\n")
+			}
+		}
+	}
 
-    return []byte(result.String()), fmType
+	return []byte(result.String()), fmType
 }

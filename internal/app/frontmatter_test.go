@@ -11,11 +11,11 @@ func TestFrontmatterHTMLFormatter_FormatAsHTML_YAML(t *testing.T) {
 	// Test YAML formatting
 	yamlFrontmatter := map[string]any{
 		"__FMTYPE__": "YAML",
-		"title":    "Test Document",
-		"author":   "John Doe",
-		"date":     "2024-01-01",
-		"published": true,
-		"tags":     []interface{}{"go", "markdown", "test"},
+		"title":      "Test Document",
+		"author":     "John Doe",
+		"date":       "2024-01-01",
+		"published":  true,
+		"tags":       []interface{}{"go", "markdown", "test"},
 		"config": map[string]interface{}{
 			"theme": "dark",
 			"debug": false,
@@ -51,11 +51,11 @@ func TestFrontmatterHTMLFormatter_FormatAsHTML_TOML(t *testing.T) {
 	// Test TOML formatting
 	tomlFrontmatter := map[string]any{
 		"__FMTYPE__": "TOML",
-		"title":    "Test Document",
-		"author":   "John Doe",
-		"date":     "2024-01-01",
-		"published": true,
-		"tags":     []interface{}{"go", "markdown", "test"},
+		"title":      "Test Document",
+		"author":     "John Doe",
+		"date":       "2024-01-01",
+		"published":  true,
+		"tags":       []interface{}{"go", "markdown", "test"},
 		"config": map[string]interface{}{
 			"theme": "dark",
 			"debug": false,
@@ -93,7 +93,7 @@ func TestFrontmatterHTMLFormatter_FormatAsHTML_EmptyType_DefaultsToYAML(t *testi
 	// Test default behavior when __FMTYPE__ is empty
 	frontmatter := map[string]any{
 		"__FMTYPE__": "",
-		"title":    "Test Document",
+		"title":      "Test Document",
 	}
 
 	result := formatter.FormatAsHTML(frontmatter)
@@ -110,7 +110,7 @@ func TestFrontmatterHTMLFormatter_FormatAsHTML_NoType_DefaultsToYAML(t *testing.
 	// Test default behavior when __FMTYPE__ is missing
 	frontmatter := map[string]any{
 		"__FMTYPE__": "YAML",
-		"title": "Test Document",
+		"title":      "Test Document",
 	}
 
 	result := formatter.FormatAsHTML(frontmatter)

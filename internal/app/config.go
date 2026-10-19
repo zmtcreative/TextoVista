@@ -29,23 +29,24 @@ func defaultConfig() *Config {
 			UseAdvancedFontDetection: true,
 		},
 		Markdown: MarkdownOptions{
-			UseGFM:           true,
-			UsePHPMDExt:      true,
-			UseEmoji:         true,
-			UseMermaid:       true,
-			UseFigure:        true,
-			UseAnchor:        true,
-			UseFences:        true,
-			UseSections:      true,
-			UseHighlighting:  true,
-			UseFancyLists:    true,
-			UseAttributes:    true,
-			UseTypographic:   true,
-			UseAbbreviations: false,
-			UseKatex:         true,
-			UseD2Diagrams:    true,
-			UseSuperSubScript: true,
+			UseGFM:                true,
+			UsePHPMDExt:           true,
+			UseEmoji:              true,
+			UseMermaid:            true,
+			UseFigure:             true,
+			UseAnchor:             true,
+			UseFences:             true,
+			UseSections:           true,
+			UseHighlighting:       true,
+			UseFancyLists:         true,
+			UseAttributes:         true,
+			UseTypographic:        true,
+			UseAbbreviations:      false,
+			UseKatex:              true,
+			UseD2Diagrams:         true,
+			UseSuperSubScript:     true,
 			UseInlineHighlighting: true,
+			UseTextInsertion:      true,
 		},
 		AlertCallouts: AlertCalloutOptions{
 			UseAlertCallouts:  true,
@@ -77,23 +78,24 @@ type ApplicationOptions struct {
 
 // Markdown-Specific Settings
 type MarkdownOptions struct {
-	UseGFM           bool `mapstructure:"use_gfm" json:"use_gfm"`                     // GitHub Flavored Markdown
-	UsePHPMDExt      bool `mapstructure:"use_php_md_ext" json:"use_php_md_ext"`       // PHP Markdown Extensions Support
-	UseEmoji         bool `mapstructure:"use_emoji" json:"use_emoji"`                 // Emoji Support
-	UseMermaid       bool `mapstructure:"use_mermaid" json:"use_mermaid"`             // Mermaid Diagrams Support
-	UseFigure        bool `mapstructure:"use_figure" json:"use_figure"`               // Image Figure Wrapping Support
-	UseAnchor        bool `mapstructure:"use_anchor" json:"use_anchor"`               // Anchor Links on Headings
-	UseFences        bool `mapstructure:"use_fences" json:"use_fences"`               // Fenced DIVs
-	UseSections      bool `mapstructure:"use_sections" json:"use_sections"`           // Wrap Headings in SECTION Elements
-	UseHighlighting  bool `mapstructure:"use_highlighting" json:"use_highlighting"`   // Fenced Code Highlighting
-	UseFancyLists    bool `mapstructure:"use_fancylists" json:"use_fancylists"`       // Allow Pandoc-Style Fancy Lists
-	UseAttributes    bool `mapstructure:"use_attributes" json:"use_attributes"`       // Allow Custom Attributes (using '{.myclass}' syntax)
-	UseAbbreviations bool `mapstructure:"use_abbreviations" json:"use_abbreviations"` // Allow Abbreviations (using `*[ABBR]: Abbreviations` syntax)
-	UseTypographic   bool `mapstructure:"use_typographic" json:"use_typographic"`     // Typographic Extensions to Use Fancy Quotes
-	UseKatex         bool `mapstructure:"use_katex" json:"use_katex"`                 // KaTeX Support for Mathematical Expressions
-	UseD2Diagrams    bool `mapstructure:"use_d2_diagrams" json:"use_d2_diagrams"`     // D2 Diagrams Support
-	UseSuperSubScript bool `mapstructure:"use_supersubscript" json:"use_supersubscript"` // Superscript and Subscript Support
+	UseGFM                bool `mapstructure:"use_gfm" json:"use_gfm"`                                 // GitHub Flavored Markdown
+	UsePHPMDExt           bool `mapstructure:"use_php_md_ext" json:"use_php_md_ext"`                   // PHP Markdown Extensions Support
+	UseEmoji              bool `mapstructure:"use_emoji" json:"use_emoji"`                             // Emoji Support
+	UseMermaid            bool `mapstructure:"use_mermaid" json:"use_mermaid"`                         // Mermaid Diagrams Support
+	UseFigure             bool `mapstructure:"use_figure" json:"use_figure"`                           // Image Figure Wrapping Support
+	UseAnchor             bool `mapstructure:"use_anchor" json:"use_anchor"`                           // Anchor Links on Headings
+	UseFences             bool `mapstructure:"use_fences" json:"use_fences"`                           // Fenced DIVs
+	UseSections           bool `mapstructure:"use_sections" json:"use_sections"`                       // Wrap Headings in SECTION Elements
+	UseHighlighting       bool `mapstructure:"use_highlighting" json:"use_highlighting"`               // Fenced Code Highlighting
+	UseFancyLists         bool `mapstructure:"use_fancylists" json:"use_fancylists"`                   // Allow Pandoc-Style Fancy Lists
+	UseAttributes         bool `mapstructure:"use_attributes" json:"use_attributes"`                   // Allow Custom Attributes (using '{.myclass}' syntax)
+	UseAbbreviations      bool `mapstructure:"use_abbreviations" json:"use_abbreviations"`             // Allow Abbreviations (using `*[ABBR]: Abbreviations` syntax)
+	UseTypographic        bool `mapstructure:"use_typographic" json:"use_typographic"`                 // Typographic Extensions to Use Fancy Quotes
+	UseKatex              bool `mapstructure:"use_katex" json:"use_katex"`                             // KaTeX Support for Mathematical Expressions
+	UseD2Diagrams         bool `mapstructure:"use_d2_diagrams" json:"use_d2_diagrams"`                 // D2 Diagrams Support
+	UseSuperSubScript     bool `mapstructure:"use_supersubscript" json:"use_supersubscript"`           // Superscript and Subscript Support
 	UseInlineHighlighting bool `mapstructure:"use_inline_highlighting" json:"use_inline_highlighting"` // Inline Text Highlighting (==text==)
+	UseTextInsertion      bool `mapstructure:"use_text_insertion" json:"use_text_insertion"`           // Text Insertion (++text++)
 }
 
 // Alert Callouts Settings
@@ -167,6 +169,7 @@ func NewConfigManager() *ConfigManager {
 	v.SetDefault("markdown.use_d2_diagrams", true)
 	v.SetDefault("markdown.use_supersubscript", true)
 	v.SetDefault("markdown.use_inline_highlighting", true)
+	v.SetDefault("markdown.use_text_insertion", true)
 
 	// Set default values for Alert Callouts section
 	v.SetDefault("alert_callouts.use_alertcallouts", true)
@@ -298,6 +301,7 @@ func (cm *ConfigManager) SaveConfig() error {
 	cm.viper.Set("markdown.use_d2_diagrams", cm.config.Markdown.UseD2Diagrams)
 	cm.viper.Set("markdown.use_supersubscript", cm.config.Markdown.UseSuperSubScript)
 	cm.viper.Set("markdown.use_inline_highlighting", cm.config.Markdown.UseInlineHighlighting)
+	cm.viper.Set("markdown.use_text_insertion", cm.config.Markdown.UseTextInsertion)
 
 	// Update viper with current config values for Alert Callouts section
 	cm.viper.Set("alert_callouts.use_alertcallouts", cm.config.AlertCallouts.UseAlertCallouts)
@@ -484,6 +488,12 @@ func (cm *ConfigManager) UseInlineHighlighting() bool {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 	return cm.config.Markdown.UseInlineHighlighting
+}
+
+func (cm *ConfigManager) UseTextInsertion() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.Markdown.UseTextInsertion
 }
 
 // Alert callouts configuration getters

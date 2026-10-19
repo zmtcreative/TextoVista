@@ -34,8 +34,8 @@ $font-family-code: "Consolas", "Monaco", "DejaVu Sans Mono", "Liberation Mono", 
 $line-height-tight: 1.1;
 $line-height-base: 1.2;
 $font-size-base: 1rem;
-$font-size-min: calc($font-size-base - 0.25rem);  // rem unit
-$font-size-max: calc($font-size-base + 0.25rem);  // rem unit
+$font-size-min: calc($font-size-base - 0.25rem); // rem unit
+$font-size-max: calc($font-size-base + 0.25rem); // rem unit
 $font-size-diff: math.div(calc($font-size-max - $font-size-min), 1rem); // cancel out rem units
 $view-min-width: 600;
 $view-min-width-px: #{$view-min-width}px;
@@ -99,6 +99,7 @@ $neutral-950: 10, 10, 10; // UNUSED
 // Essential Color Palette (commonly used colors only)
 $color-white: 255, 255, 255;
 $color-black: 0, 0, 0;
+$color-yellow: 255, 255, 0;
 $color-red: 255, 0, 0; // UNUSED
 $color-green: 0, 128, 0; // UNUSED
 $color-blue: 0, 0, 255; // UNUSED
@@ -122,6 +123,9 @@ $codeblock-opacity-dark: 0.25;
     --bg-color-rgb: #{$bg-color-light-rgb};
     --text-color: #{$text-color-light};
     --text-color-rgb: #{$text-color-light-rgb};
+    --text-highlight-color: #ffff00;
+    // --text-insertion-color: #e6ffec;
+    --text-insertion-color: #d4edda;
     --header-bg-color: #{$header-bg-light};
     --border-color: #{$border-color-light};
     --inline-code-bg: #{$inline-code-bg-light};
@@ -225,4 +229,3 @@ html.dark {
     --dialog-color-tab-accent: #{color.adjust($bg-color-dark, $lightness: 50%)};
     --dialog-color-accent-hover: #2563eb;
 }
-

@@ -46,34 +46,52 @@ body {
     margin: 0 auto;
     padding: 10px;
 
-    h1, h2, h3 {
+    h1,
+    h2,
+    h3 {
         border-bottom: 1px solid rgba(var(--text-color-rgb), 0.33);
         padding-bottom: 0.3rem;
     }
 
-    h1, h2, h3, h4, h5, h6, [id] {
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    [id] {
         scroll-margin-top: 12px;
     }
 
-    h1, h2, h3, h4, h5, h6 {
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
         margin: 0.67rem 0;
     }
 
     h1 {
         font-size: clamp(1.25rem, calc(var(--font-header-ratio) * 1.5), 2.125rem);
     }
+
     h2 {
         font-size: clamp(1.125rem, calc(var(--font-header-ratio) * 1.25), 2rem);
     }
+
     h3 {
         font-size: clamp(1rem, calc(var(--font-header-ratio) * 1.125), 1.75rem);
     }
+
     h4 {
         font-size: clamp(0.875rem, calc(var(--font-header-ratio)), 1.5rem);
     }
+
     h5 {
         font-size: clamp(0.825rem, calc(var(--font-header-ratio) * 0.9), 1.25rem);
     }
+
     h6 {
         font-size: clamp(0.8rem, calc(var(--font-header-ratio) * 0.8), 1.125rem);
     }
@@ -97,6 +115,7 @@ body {
     // Inline Emphasis Styles
     strong {
         font-weight: bold;
+
         & code {
             font-size: 0.95rem;
         }
@@ -104,6 +123,7 @@ body {
 
     em {
         font-style: italic;
+
         & code {
             font-size: 0.95rem;
         }
@@ -113,7 +133,12 @@ body {
         text-decoration: line-through;
         text-decoration-color: var(--text-strikethrough-color);
         text-decoration-style: solid;
-        text-decoration-thickness: 2px;
+        text-decoration-thickness: 1px;
+    }
+
+    ins {
+        text-decoration: none;
+        background-color: var(--text-insertion-color);
     }
 
     sup {
@@ -122,6 +147,10 @@ body {
         vertical-align: super;
         line-height: 1;
         padding-left: 0.05rem;
+    }
+
+    mark {
+        background-color: var(--text-highlight-color);
     }
 
     code {
@@ -142,7 +171,7 @@ body {
         height: auto;
         background-color: rgba(var(--css-color-black), var(--codeblock-opacity));
 
-        > code {
+        >code {
             display: block;
             padding: 0.75rem 0.5rem;
             line-height: 1.15;
@@ -159,7 +188,7 @@ body {
         height: auto;
         background-color: rgba(var(--css-color-black), var(--codeblock-opacity));
 
-        > code {
+        >code {
             display: block;
             padding: 1.75rem 0.5rem 0.75rem 0.5rem;
             line-height: 1.15;
@@ -214,7 +243,7 @@ body {
         &.nolable:has(code),
         &[nolable]:has(code),
         &[nolabel]:has(code) {
-            > code.chroma {
+            >code.chroma {
                 padding: 0.75rem 0.5rem;
             }
         }
@@ -232,7 +261,8 @@ body {
         overflow: auto;
         width: 100%;
 
-        th, td {
+        th,
+        td {
             border: 1px solid #dfe2e5;
             padding: 6px 13px;
         }
@@ -283,9 +313,11 @@ body {
     dl {
         text-align: left;
         margin-left: 0.5rem;
+
         dt {
             font-weight: bold;
         }
+
         dd {
             margin-left: 1.75rem;
             margin-bottom: 0.5rem;
@@ -300,7 +332,7 @@ body {
         line-height: 1;
         padding-left: 0.05rem;
 
-        & > a {
+        &>a {
             text-decoration: underline;
         }
     }
@@ -347,21 +379,49 @@ html.dark .markdown-body a {
 }
 
 // Essential color utilities (only commonly used ones)
-.bg-white { background-color: white; }
-.bg-black { background-color: black; }
-.bg-red { background-color: red; }
-.bg-green { background-color: green; }
-.bg-blue { background-color: blue; }
+.bg-white {
+    background-color: white;
+}
 
-.fg-white { color: white; }
-.fg-black { color: black; }
-.fg-red { color: red; }
-.fg-green { color: green; }
-.fg-blue { color: blue; }
+.bg-black {
+    background-color: black;
+}
+
+.bg-red {
+    background-color: red;
+}
+
+.bg-green {
+    background-color: green;
+}
+
+.bg-blue {
+    background-color: blue;
+}
+
+.fg-white {
+    color: white;
+}
+
+.fg-black {
+    color: black;
+}
+
+.fg-red {
+    color: red;
+}
+
+.fg-green {
+    color: green;
+}
+
+.fg-blue {
+    color: blue;
+}
 
 // Custom Testing Styles
 .hello {
-    background-color: rgba(255,0,0,0.5);
+    background-color: rgba(255, 0, 0, 0.5);
 }
 
 span.invalid {
@@ -376,6 +436,7 @@ span.invalid {
         font-weight: bold;
         margin-right: 0.125rem;
     }
+
     &::after {
         background-color: var(--bg-color);
         content: " !!";
