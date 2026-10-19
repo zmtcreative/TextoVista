@@ -31,6 +31,7 @@ type markdownTestConfig struct {
 	useKatex        bool
 	useD2           bool
 	useSuperSubScript bool
+	useInlineHighlighting bool
 	useAlertCallouts bool
 	alertStyle      string
 }
@@ -57,6 +58,7 @@ func defaultMarkdownTestConfig() markdownTestConfig {
 		useKatex:         true,
 		useD2:            true,
 		useSuperSubScript: true,
+		useInlineHighlighting: true,
 		useAlertCallouts: true,
 		alertStyle:       "GFMPlus",
 	}
@@ -84,6 +86,7 @@ func (c markdownTestConfig) UseAbbreviations() bool             { return c.useAb
 func (c markdownTestConfig) UseKatex() bool                     { return c.useKatex }
 func (c markdownTestConfig) UseD2Diagrams() bool                { return c.useD2 }
 func (c markdownTestConfig) UseSuperSubScript() bool            { return c.useSuperSubScript }
+func (c markdownTestConfig) UseInlineHighlighting() bool        { return c.useInlineHighlighting }
 func (c markdownTestConfig) UseAlertCallouts() bool             { return c.useAlertCallouts }
 func (c markdownTestConfig) AlertCalloutStyle() string          { return c.alertStyle }
 
@@ -235,6 +238,22 @@ func TestCreateGoldmarkInstanceFeatureMatrix(t *testing.T) {
 			}(),
 			input: "Water is H~2~O and power is 2^10^.",
 			wantNotContains: []string{"<sub>2</sub>", "<sup>10</sup>"},
+		},
+		{
+			name: "inline text highlighting enabled renders mark tags",
+			cfg:  defaultMarkdownTestConfig(),
+			input: "This is ==highlighted text== in markdown.",
+			wantContains: []string{"<mark>highlighted text</mark>"},
+		},
+		{
+			name: "inline text highlighting disabled does not render mark tags",
+			cfg: func() markdownTestConfig {
+				cfg := defaultMarkdownTestConfig()
+				cfg.useInlineHighlighting = false
+				return cfg
+			}(),
+			input: "This is ==highlighted text== in markdown.",
+			wantNotContains: []string{"<mark>"},
 		},
 	}
 

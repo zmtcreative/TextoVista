@@ -41,6 +41,7 @@ import (
 	"go.abhg.dev/goldmark/anchor"
 	"go.abhg.dev/goldmark/frontmatter"
 	mermaid "go.abhg.dev/goldmark/mermaid"
+	texthighlight "github.com/zuern/goldmark-highlight"
 )
 
 //go:embed assets/alertcallouts-gfmstrict.icons
@@ -88,6 +89,7 @@ type ConfigProvider interface {
 	UseKatex() bool
 	UseD2Diagrams() bool
 	UseSuperSubScript() bool
+	UseInlineHighlighting() bool
 
     // Alert callouts configuration getters
     UseAlertCallouts() bool
@@ -346,6 +348,15 @@ func CreateGoldmarkInstance(configProvider ConfigProvider) goldmark.Markdown {
 					util.Prioritized(supersub.NewSubscriptHTMLRenderer(), 450),
 					util.Prioritized(supersub.NewSuperscriptHTMLRenderer(), 450),
 				),
+			),
+		)
+	}
+
+	// Enable Inline Text Highlighting (==text==) if configured
+	if configProvider.UseInlineHighlighting() {
+		options = append(options,
+			goldmark.WithExtensions(
+				&texthighlight.Extender{},
 			),
 		)
 	}

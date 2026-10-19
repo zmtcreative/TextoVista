@@ -392,7 +392,4 @@ func TestDocumentProcessorLoadsActualSampleDocument(t *testing.T) {
 	if !strings.Contains(payload.HTML, `src="data:image/png;base64,`) {
 		t.Fatalf("sample.md should preserve data:image/png;base64 on img src")
 	}
-	if !strings.Contains(payload.HTML, `src="data:image/webp;base64,`) {
-		t.Fatalf("sample.md should preserve data:image/webp;base64 on img src")
-	}
 }

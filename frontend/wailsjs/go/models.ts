@@ -61,6 +61,7 @@ export namespace app {
 	    use_katex: boolean;
 	    use_d2_diagrams: boolean;
 	    use_supersubscript: boolean;
+	    use_inline_highlighting: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new MarkdownOptions(source);
@@ -84,6 +85,7 @@ export namespace app {
 	        this.use_katex = source["use_katex"];
 	        this.use_d2_diagrams = source["use_d2_diagrams"];
 	        this.use_supersubscript = source["use_supersubscript"];
+	        this.use_inline_highlighting = source["use_inline_highlighting"];
 	    }
 	}
 	export class Config {

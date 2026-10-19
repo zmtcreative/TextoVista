@@ -371,6 +371,21 @@
                     </p>
                   </div>
 
+                  <!-- Inline Text Highlighting -->
+                  <div class="setting-group">
+                    <label class="checkbox-label">
+                      <input
+                        type="checkbox"
+                        v-model="localSettings.markdown.use_inline_highlighting"
+                      />
+                      <span class="checkbox-custom"></span>
+                      Inline Text Highlighting
+                    </label>
+                    <p class="setting-description">
+                      Enable ==highlighted text== syntax rendering.
+                    </p>
+                  </div>
+
                   <!-- Image Figure Wrapping -->
                   <div class="setting-group">
                     <label class="checkbox-label">
@@ -580,7 +595,8 @@ const createDefaultSettings = (): Settings => {
       use_typographic: true,
       use_katex: true,
       use_d2_diagrams: true,
-      use_supersubscript: true
+      use_supersubscript: true,
+      use_inline_highlighting: true
     },
     alert_callouts: {
       use_alertcallouts: true,

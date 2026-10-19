@@ -67,10 +67,12 @@ Markdown supports fine-grained inline emphasis and typographic styling:
 - *Italic text* using `*italic*` or `_italic_`
 - ***Bold and italic text*** using `***bold and italic***`
 - ~~Strikethrough text~~ using `~~strikethrough~~`
+- ++Text Insertion++ using `++Text Insertion++`
 - `Inline code spans` using `` `inline code` ``
 - ==Highlighted text== using `==highlighted text==`
 - H~2~O and x^2^ + y^2^ = z^2^ using `H~2~O` and `x^2^ + y^2^ = z^2^`
 - Hard line breaks using two trailing spaces or a backslash (`\`) at the end of a line.
+- Emoji support: :smile: :wink: :fire: :heart: :rocket: :star: using `:smile: :wink: :fire: :heart: :rocket: :star:`
 
 ### Blockquotes
 
@@ -95,6 +97,8 @@ The typographic extension automatically transforms straight ASCII punctuation in
 - En-dash (`--`) becomes an en-dash: 2024--2026
 - Em-dash (`---`) becomes an em-dash: Go---the systems language
 - Ellipsis (`...`) becomes an ellipsis glyph: Loading...
+- Copyright (c) using `Copyright (c)`
+- Trademark(tm) using `Trademark(tm)`
 
 ---
 

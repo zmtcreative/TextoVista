@@ -33,6 +33,7 @@ require (
 	// github.com/zmtcreative/gm-alert-callouts v0.0.0
 	github.com/zmtcreative/gm-fancy-lists v0.3.0
 	github.com/zmtcreative/gm-sectionwrapper v0.3.0
+	github.com/zuern/goldmark-highlight v0.1.0
 	go.abhg.dev/goldmark/anchor v0.2.0
 	go.abhg.dev/goldmark/frontmatter v0.3.0
 	go.abhg.dev/goldmark/mermaid v0.6.0

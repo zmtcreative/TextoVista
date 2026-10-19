@@ -32,6 +32,7 @@ export function createConfigFixture(overrides: Partial<app.Config> = {}): app.Co
       use_katex: true,
       use_d2_diagrams: true,
       use_supersubscript: true,
+      use_inline_highlighting: true,
       ...(overrides.markdown ?? {}),
     },
     alert_callouts: {

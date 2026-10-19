@@ -64,6 +64,9 @@ func TestNewConfigManager(t *testing.T) {
 	if !config.Markdown.UseSuperSubScript {
 		t.Error("Default UseSuperSubScript should be true")
 	}
+	if !config.Markdown.UseInlineHighlighting {
+		t.Error("Default UseInlineHighlighting should be true")
+	}
 
 	// Test Alert Callouts defaults
 	if !config.AlertCallouts.UseAlertCallouts {
@@ -430,6 +433,7 @@ func TestConfigManagerMarkdownFeatureGetters(t *testing.T) {
 			UseKatex:         false,
 			UseD2Diagrams:    true,
 			UseSuperSubScript: false,
+			UseInlineHighlighting: true,
 		},
 		AlertCallouts: AlertCalloutOptions{
 			UseAlertCallouts:  false,
@@ -464,6 +468,7 @@ func TestConfigManagerMarkdownFeatureGetters(t *testing.T) {
 		{name: "UseKatex", got: cm.UseKatex(), want: false},
 		{name: "UseD2Diagrams", got: cm.UseD2Diagrams(), want: true},
 		{name: "UseSuperSubScript", got: cm.UseSuperSubScript(), want: false},
+		{name: "UseInlineHighlighting", got: cm.UseInlineHighlighting(), want: true},
 		{name: "UseAlertCallouts", got: cm.UseAlertCallouts(), want: false},
 		{name: "GetUseAdvancedFontDetection", got: cm.GetUseAdvancedFontDetection(), want: false},
 	}
@@ -581,6 +586,7 @@ func TestLoadConfigUsesDefaultsWhenFileMissing(t *testing.T) {
 	v.SetDefault("markdown.use_katex", true)
 	v.SetDefault("markdown.use_d2_diagrams", true)
 	v.SetDefault("markdown.use_supersubscript", true)
+	v.SetDefault("markdown.use_inline_highlighting", true)
 	v.SetDefault("alert_callouts.use_alertcallouts", true)
 	v.SetDefault("alert_callouts.alertcallout_style", "GFMPlus")
 
