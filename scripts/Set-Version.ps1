@@ -5,8 +5,9 @@
         Uses wails.json as the Source of Truth for the current project version.
         Calculates the next semantic version and Windows 4-part numeric version,
         prompts the user to confirm the bump, updates wails.json, package.json,
-        info.json, and project.nsi, commits the changes with a Conventional Commit
-        message ('chore(release): bump version to <version>'), and pushes the commit
+        info.json, and project.nsi, syncs frontend/package-lock.json via npm,
+        commits the changes with a Conventional Commit message
+        ('chore(release): bump version to <version>'), and pushes the commit
         to the remote repository.
 
         Optionally creates an annotated Git tag locally using the updated version as
@@ -770,6 +771,45 @@ function Apply-FileUpdates {
     }
 }
 
+function Sync-FrontendPackageLock {
+    param (
+        [string]$ProjectRoot
+    )
+
+    $frontendDir = Join-Path $ProjectRoot "frontend"
+    if (-not (Test-Path -Path $frontendDir -PathType Container)) {
+        Write-Host -ForegroundColor Red "Error: 'frontend' directory not found at: $frontendDir"
+        exit 1
+    }
+
+    $npmCmd = Get-Command "npm" -ErrorAction SilentlyContinue
+    if (-not $npmCmd) {
+        Write-Host -ForegroundColor Red "Error: 'npm' command not found in PATH. Node.js/npm is required to update package-lock.json."
+        exit 1
+    }
+
+    Write-Host -ForegroundColor Cyan "Syncing frontend/package-lock.json via 'npm i --package-lock-only'..."
+    Push-Location $frontendDir
+    try {
+        $npmOutput = & npm i --package-lock-only 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host -ForegroundColor Red "Error: 'npm i --package-lock-only' failed with exit code $LASTEXITCODE."
+            if ($npmOutput) {
+                $npmOutput | ForEach-Object { Write-Host -ForegroundColor Red "  $_" }
+            }
+            exit 1
+        }
+        Write-Host -ForegroundColor Green "  frontend/package-lock.json synced successfully."
+    }
+    catch {
+        Write-Host -ForegroundColor Red "Error executing 'npm i --package-lock-only': $_"
+        exit 1
+    }
+    finally {
+        Pop-Location
+    }
+}
+
 # ==============================================================================
 # Helper Functions: Reporting & Display
 # ==============================================================================
@@ -856,6 +896,7 @@ function Show-PlannedOperations {
         Write-Host -NoNewline "  Target Version               : "; Write-Host -ForegroundColor Green "$NewSemVer (Win: $NewFileVer)"
         Write-Host -NoNewline "  Commit Message               : "; Write-Host -ForegroundColor Yellow "$FinalCommitMessage"
         Write-Host -NoNewline "  Git Branch                   : "; Write-Host "$CurrentBranch"
+        Write-Host -NoNewline "  Lockfile Sync                : "; Write-Host -ForegroundColor Cyan "npm i --package-lock-only (in frontend/)"
         Write-Host -NoNewline "  Push Commit to Remote        : "
         if ($NoPush) {
             Write-Host -ForegroundColor Yellow "No (-NoPush specified: Local commit only)"
@@ -922,9 +963,14 @@ function Show-DryRunPlan {
 
     Write-Host -ForegroundColor Yellow "[DryRun / WhatIf Mode] Simulation complete. No files or Git references modified."
     Write-Host ""
-    Write-Host -ForegroundColor Cyan "Planned Git commands that would execute:"
+    Write-Host -ForegroundColor Cyan "Planned Git and build commands that would execute:"
     if (-not $CurrentVersion) {
-        $relList = ($DiffPlans | Where-Object { $_.IsModified } | ForEach-Object { $_.RelPath }) -join " "
+        Write-Host "  (cd frontend && npm i --package-lock-only)"
+        $relFiles = @($DiffPlans | Where-Object { $_.IsModified } | ForEach-Object { $_.RelPath })
+        if (Test-Path "frontend/package-lock.json") {
+            $relFiles += "frontend/package-lock.json"
+        }
+        $relList = ($relFiles | Select-Object -Unique) -join " "
         if (-not [string]::IsNullOrWhiteSpace($relList)) {
             Write-Host "  git add $relList"
             Write-Host "  git commit -m `"$FinalCommitMessage`""
@@ -1106,7 +1152,15 @@ function Invoke-VersionBumpCommit {
     )
 
     Write-Host -ForegroundColor Cyan "Staging files in Git..."
-    $modifiedFiles = $DiffPlans | Where-Object { $_.IsModified } | ForEach-Object { $_.RelPath }
+    $modifiedFiles = @($DiffPlans | Where-Object { $_.IsModified } | ForEach-Object { $_.RelPath })
+    $lockfilePath = "frontend/package-lock.json"
+    if (Test-Path -Path $lockfilePath -PathType Leaf) {
+        $lockfileStatus = git status --porcelain -- $lockfilePath 2>$null
+        if (-not [string]::IsNullOrWhiteSpace($lockfileStatus)) {
+            $modifiedFiles += $lockfilePath
+        }
+    }
+    $modifiedFiles = @($modifiedFiles | Select-Object -Unique)
     if ($modifiedFiles.Count -gt 0) {
         git add $modifiedFiles 2>&1 | Out-Null
         if ($LASTEXITCODE -ne 0) {
@@ -1504,6 +1558,11 @@ try {
         exit 1
     }
 
+    if ((-not $CurrentVersion) -and (-not (Get-Command "npm" -ErrorAction SilentlyContinue))) {
+        Write-Host -ForegroundColor Red "Error: 'npm' command not found in PATH. Node.js/npm is required to sync frontend/package-lock.json."
+        exit 1
+    }
+
     # 6. Calculate target version using wails.json version as baseline
     if ($CurrentVersion) {
         $nextObj = $currentObj
@@ -1605,6 +1664,8 @@ try {
 
         Write-Host -ForegroundColor Cyan "Applying file updates..."
         Apply-FileUpdates -DiffPlans $diffPlans
+
+        Sync-FrontendPackageLock -ProjectRoot $ProjectRoot
 
         Invoke-VersionBumpCommit `
             -DiffPlans $diffPlans `
