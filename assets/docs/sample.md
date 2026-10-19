@@ -99,6 +99,7 @@ The typographic extension automatically transforms straight ASCII punctuation in
 - Ellipsis (`...`) becomes an ellipsis glyph: Loading...
 - Copyright (c) using `Copyright (c)`
 - Trademark(tm) using `Trademark(tm)`
+- Registered trademark (r) using `Registered trademark (r)`
 
 ---
 
