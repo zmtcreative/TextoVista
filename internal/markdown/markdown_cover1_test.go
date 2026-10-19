@@ -194,11 +194,22 @@ func TestCreateGoldmarkInstanceFeatureMatrix(t *testing.T) {
 			wantContains: []string{`class="callout"`},
 		},
 		{
-			name: "typographic extension converts punctuation",
+			name: "typographic extension converts punctuation and shortcuts",
 			cfg:  defaultMarkdownTestConfig(),
-			input: `"quoted" -- text ...`,
-			wantContains: []string{"&ldquo;quoted&rdquo;", "&hellip;", "&ndash;"},
+			input: `"quoted" -- text ... and Copyright (c) TextoVista(tm) Registered(r)`,
+			wantContains: []string{"&ldquo;quoted&rdquo;", "&hellip;", "&ndash;", "&copy;", "&trade;", "&reg;"},
 			wantNotContains: []string{"..."},
+		},
+		{
+			name: "typographic extension disabled leaves shortcuts and punctuation literal",
+			cfg: func() markdownTestConfig {
+				cfg := defaultMarkdownTestConfig()
+				cfg.useTypographic = false
+				return cfg
+			}(),
+			input: `Copyright (c) 2026 TextoVista(tm) Registered(r)`,
+			wantContains: []string{"(c)", "(tm)", "(r)"},
+			wantNotContains: []string{"&copy;", "&trade;", "&reg;"},
 		},
 		{
 			name: "katex extension renders katex markup",

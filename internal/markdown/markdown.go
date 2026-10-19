@@ -42,6 +42,7 @@ import (
 	"go.abhg.dev/goldmark/frontmatter"
 	mermaid "go.abhg.dev/goldmark/mermaid"
 	texthighlight "github.com/zuern/goldmark-highlight"
+	"texto-vista/internal/gm-ext/shortcuts"
 )
 
 //go:embed assets/alertcallouts-gfmstrict.icons
@@ -150,11 +151,12 @@ func CreateGoldmarkInstance(configProvider ConfigProvider) goldmark.Markdown {
 		)
 	}
 
-	// Enable Typographic extensions if configured (for better typography -- fancy quote symbols)
+	// Enable Typographic extensions if configured (for better typography -- fancy quotes and typographic shortcuts)
 	if configProvider.UseTypographic() {
 		options = append(options,
 			goldmark.WithExtensions(
 				extension.Typographer,
+				shortcuts.NewExtender(),
 			),
 		)
 	}
