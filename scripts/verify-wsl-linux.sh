@@ -486,7 +486,7 @@ fi
 
 if [[ "$project_root" == /mnt/* ]]; then
     echo "Warning: Repo is running from a mounted Windows path: $project_root"
-    echo "Warning: For better file watching and dev-server performance, prefer a Linux path such as ~/src/markdown-reader-dev"
+    echo "Warning: For better file watching and dev-server performance, prefer a Linux path such as ~/src/TextoVista-dev"
 fi
 
 print_section "Required Ubuntu Packages"
