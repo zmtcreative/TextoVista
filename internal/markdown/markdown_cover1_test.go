@@ -11,84 +11,86 @@ import (
 )
 
 type markdownTestConfig struct {
-	useInlineHTML   bool
-	useSanitize     bool
-	useStripH1      bool
-	useFrontmatter  bool
-	useGFM          bool
-	usePHPMDExt     bool
-	useEmoji        bool
-	useMermaid      bool
-	useFigure       bool
-	useAnchor       bool
-	useFences       bool
-	useSections     bool
-	useHighlighting bool
-	useFancyLists   bool
-	useAttributes   bool
-	useTypographic  bool
-	useAbbreviations bool
-	useKatex        bool
-	useD2           bool
-	useSuperSubScript bool
+	useInlineHTML         bool
+	useSanitize           bool
+	useStripH1            bool
+	useFrontmatter        bool
+	useGFM                bool
+	usePHPMDExt           bool
+	useEmoji              bool
+	useMermaid            bool
+	useFigure             bool
+	useAnchor             bool
+	useFences             bool
+	useSections           bool
+	useHighlighting       bool
+	useFancyLists         bool
+	useAttributes         bool
+	useTypographic        bool
+	useAbbreviations      bool
+	useKatex              bool
+	useD2                 bool
+	useSuperSubScript     bool
 	useInlineHighlighting bool
-	useAlertCallouts bool
-	alertStyle      string
+	useAlertCallouts      bool
+	alertStyle            string
 }
 
 func defaultMarkdownTestConfig() markdownTestConfig {
 	return markdownTestConfig{
-		useInlineHTML:    true,
-		useSanitize:      false,
-		useStripH1:       false,
-		useFrontmatter:   true,
-		useGFM:           true,
-		usePHPMDExt:      true,
-		useEmoji:         true,
-		useMermaid:       true,
-		useFigure:        true,
-		useAnchor:        true,
-		useFences:        true,
-		useSections:      true,
-		useHighlighting:  true,
-		useFancyLists:    true,
-		useAttributes:    true,
-		useTypographic:   true,
-		useAbbreviations: true,
-		useKatex:         true,
-		useD2:            true,
-		useSuperSubScript: true,
+		useInlineHTML:         true,
+		useSanitize:           false,
+		useStripH1:            false,
+		useFrontmatter:        true,
+		useGFM:                true,
+		usePHPMDExt:           true,
+		useEmoji:              true,
+		useMermaid:            true,
+		useFigure:             true,
+		useAnchor:             true,
+		useFences:             true,
+		useSections:           true,
+		useHighlighting:       true,
+		useFancyLists:         true,
+		useAttributes:         true,
+		useTypographic:        true,
+		useAbbreviations:      true,
+		useKatex:              true,
+		useD2:                 true,
+		useSuperSubScript:     true,
 		useInlineHighlighting: true,
-		useAlertCallouts: true,
-		alertStyle:       "GFMPlus",
+		useAlertCallouts:      true,
+		alertStyle:            "GFMPlus",
 	}
 }
 
-func (c markdownTestConfig) GetApplicationConfig() (bool, bool) { return c.useInlineHTML, c.useSanitize }
-func (c markdownTestConfig) GetAlertCalloutConfig() string      { return c.alertStyle }
-func (c markdownTestConfig) UseInlineHTML() bool                { return c.useInlineHTML }
-func (c markdownTestConfig) UseSanitize() bool                  { return c.useSanitize }
-func (c markdownTestConfig) UseStripH1() bool                   { return c.useStripH1 }
-func (c markdownTestConfig) UseFrontmatterTitle() bool          { return c.useFrontmatter }
-func (c markdownTestConfig) UseGFM() bool                       { return c.useGFM }
-func (c markdownTestConfig) UsePHPMDExt() bool                  { return c.usePHPMDExt }
-func (c markdownTestConfig) UseEmoji() bool                     { return c.useEmoji }
-func (c markdownTestConfig) UseMermaid() bool                   { return c.useMermaid }
-func (c markdownTestConfig) UseFigure() bool                    { return c.useFigure }
-func (c markdownTestConfig) UseAnchor() bool                    { return c.useAnchor }
-func (c markdownTestConfig) UseFences() bool                    { return c.useFences }
-func (c markdownTestConfig) UseSections() bool                  { return c.useSections }
-func (c markdownTestConfig) UseHighlighting() bool              { return c.useHighlighting }
-func (c markdownTestConfig) UseFancyLists() bool                { return c.useFancyLists }
-func (c markdownTestConfig) UseAttributes() bool                { return c.useAttributes }
-func (c markdownTestConfig) UseTypographic() bool               { return c.useTypographic }
-func (c markdownTestConfig) UseAbbreviations() bool             { return c.useAbbreviations }
-func (c markdownTestConfig) UseKatex() bool                     { return c.useKatex }
-func (c markdownTestConfig) UseD2Diagrams() bool                { return c.useD2 }
-func (c markdownTestConfig) UseSuperSubScript() bool            { return c.useSuperSubScript }
-func (c markdownTestConfig) UseInlineHighlighting() bool        { return c.useInlineHighlighting }
-func (c markdownTestConfig) UseAlertCallouts() bool             { return c.useAlertCallouts }
-func (c markdownTestConfig) AlertCalloutStyle() string          { return c.alertStyle }
+func (c markdownTestConfig) GetApplicationConfig() (bool, bool) {
+	return c.useInlineHTML, c.useSanitize
+}
+func (c markdownTestConfig) GetAlertCalloutConfig() string { return c.alertStyle }
+func (c markdownTestConfig) UseInlineHTML() bool           { return c.useInlineHTML }
+func (c markdownTestConfig) UseSanitize() bool             { return c.useSanitize }
+func (c markdownTestConfig) UseStripH1() bool              { return c.useStripH1 }
+func (c markdownTestConfig) UseFrontmatterTitle() bool     { return c.useFrontmatter }
+func (c markdownTestConfig) UseGFM() bool                  { return c.useGFM }
+func (c markdownTestConfig) UsePHPMDExt() bool             { return c.usePHPMDExt }
+func (c markdownTestConfig) UseEmoji() bool                { return c.useEmoji }
+func (c markdownTestConfig) UseMermaid() bool              { return c.useMermaid }
+func (c markdownTestConfig) UseFigure() bool               { return c.useFigure }
+func (c markdownTestConfig) UseAnchor() bool               { return c.useAnchor }
+func (c markdownTestConfig) UseFences() bool               { return c.useFences }
+func (c markdownTestConfig) UseSections() bool             { return c.useSections }
+func (c markdownTestConfig) UseHighlighting() bool         { return c.useHighlighting }
+func (c markdownTestConfig) UseFancyLists() bool           { return c.useFancyLists }
+func (c markdownTestConfig) UseAttributes() bool           { return c.useAttributes }
+func (c markdownTestConfig) UseTypographic() bool          { return c.useTypographic }
+func (c markdownTestConfig) UseAbbreviations() bool        { return c.useAbbreviations }
+func (c markdownTestConfig) UseKatex() bool                { return c.useKatex }
+func (c markdownTestConfig) UseD2Diagrams() bool           { return c.useD2 }
+func (c markdownTestConfig) UseSuperSubScript() bool       { return c.useSuperSubScript }
+func (c markdownTestConfig) UseInlineHighlighting() bool   { return c.useInlineHighlighting }
+func (c markdownTestConfig) UseAlertCallouts() bool        { return c.useAlertCallouts }
+func (c markdownTestConfig) AlertCalloutStyle() string     { return c.alertStyle }
 
 func convertMarkdownWithConfig(t *testing.T, cfg markdownTestConfig, input string) (string, map[string]any, string) {
 	t.Helper()
@@ -121,83 +123,83 @@ func TestCreateGoldmarkInstanceFeatureMatrix(t *testing.T) {
 			wantNotContains: []string{`<span class="raw">inline</span>`},
 		},
 		{
-			name: "inline html enabled preserves raw html",
-			cfg:  defaultMarkdownTestConfig(),
-			input: `<span class="raw">inline</span>`,
+			name:         "inline html enabled preserves raw html",
+			cfg:          defaultMarkdownTestConfig(),
+			input:        `<span class="raw">inline</span>`,
 			wantContains: []string{`<span class="raw">inline</span>`},
 		},
 		{
-			name: "gfm task list renders checkbox",
-			cfg:  defaultMarkdownTestConfig(),
-			input: "- [x] done",
+			name:         "gfm task list renders checkbox",
+			cfg:          defaultMarkdownTestConfig(),
+			input:        "- [x] done",
 			wantContains: []string{`type="checkbox"`, `checked=""`},
 		},
 		{
-			name: "php markdown footnotes render references",
-			cfg:  defaultMarkdownTestConfig(),
-			input: "note[^1]\n\n[^1]: footnote body",
+			name:         "php markdown footnotes render references",
+			cfg:          defaultMarkdownTestConfig(),
+			input:        "note[^1]\n\n[^1]: footnote body",
 			wantContains: []string{`fn:1`, `footnote body`},
 		},
 		{
-			name: "emoji extension renders unicode emoji",
-			cfg:  defaultMarkdownTestConfig(),
-			input: `Emoji :smile:`,
+			name:         "emoji extension renders unicode emoji",
+			cfg:          defaultMarkdownTestConfig(),
+			input:        `Emoji :smile:`,
 			wantContains: []string{"&#x1f604;"},
 		},
 		{
-			name: "mermaid extension marks mermaid blocks",
-			cfg:  defaultMarkdownTestConfig(),
-			input: "```mermaid\ngraph TD\nA-->B\n```",
+			name:         "mermaid extension marks mermaid blocks",
+			cfg:          defaultMarkdownTestConfig(),
+			input:        "```mermaid\ngraph TD\nA-->B\n```",
 			wantContains: []string{"mermaid", "graph TD"},
 		},
 		{
-			name: "figure extension wraps image",
-			cfg:  defaultMarkdownTestConfig(),
-			input: "![Figure caption](image.png \"Figure caption\")",
+			name:         "figure extension wraps image",
+			cfg:          defaultMarkdownTestConfig(),
+			input:        "![Figure caption](image.png \"Figure caption\")",
 			wantContains: []string{`<img src="image.png"`, "Figure caption"},
 		},
 		{
-			name: "anchor extension adds heading anchors",
-			cfg:  defaultMarkdownTestConfig(),
-			input: "# Heading",
+			name:         "anchor extension adds heading anchors",
+			cfg:          defaultMarkdownTestConfig(),
+			input:        "# Heading",
 			wantContains: []string{`href="#heading"`},
 		},
 		{
-			name: "fences extension preserves custom fenced div content",
-			cfg:  defaultMarkdownTestConfig(),
-			input: "::: note\ninside fenced block\n:::",
+			name:         "fences extension preserves custom fenced div content",
+			cfg:          defaultMarkdownTestConfig(),
+			input:        "::: note\ninside fenced block\n:::",
 			wantContains: []string{"inside fenced block"},
 		},
 		{
-			name: "sections extension wraps heading sections",
-			cfg:  defaultMarkdownTestConfig(),
-			input: "# Heading\n\nBody",
+			name:         "sections extension wraps heading sections",
+			cfg:          defaultMarkdownTestConfig(),
+			input:        "# Heading\n\nBody",
 			wantContains: []string{"<section", `class="section-h1 h1"`},
 		},
 		{
-			name: "highlighting and attributes render code wrapper attributes",
-			cfg:  defaultMarkdownTestConfig(),
-			input: "```golang {data-test=\"yes\" label=\"Go\" ignored=\"no\"}\nfmt.Println(1)\n```",
-			wantContains: []string{`<pre language="go"`, `data-test="yes"`, `label="Go"`, `class="chroma"`},
+			name:            "highlighting and attributes render code wrapper attributes",
+			cfg:             defaultMarkdownTestConfig(),
+			input:           "```golang {data-test=\"yes\" label=\"Go\" ignored=\"no\"}\nfmt.Println(1)\n```",
+			wantContains:    []string{`<pre language="go"`, `data-test="yes"`, `label="Go"`, `class="chroma"`},
 			wantNotContains: []string{`ignored="no"`},
 		},
 		{
-			name: "fancy lists render alphabetic ordered list",
-			cfg:  defaultMarkdownTestConfig(),
-			input: "a. alpha\nb. beta",
+			name:         "fancy lists render alphabetic ordered list",
+			cfg:          defaultMarkdownTestConfig(),
+			input:        "a. alpha\nb. beta",
 			wantContains: []string{`<ol class="fancy fl-lcalpha" type="a"`, "alpha", "beta"},
 		},
 		{
-			name: "attributes extension applies block classes",
-			cfg:  defaultMarkdownTestConfig(),
-			input: "Paragraph\n{.callout}",
+			name:         "attributes extension applies block classes",
+			cfg:          defaultMarkdownTestConfig(),
+			input:        "Paragraph\n{.callout}",
 			wantContains: []string{`class="callout"`},
 		},
 		{
-			name: "typographic extension converts punctuation and shortcuts",
-			cfg:  defaultMarkdownTestConfig(),
-			input: `"quoted" -- text ... and Copyright (c) TextoVista(tm) Registered(r)`,
-			wantContains: []string{"&ldquo;quoted&rdquo;", "&hellip;", "&ndash;", "&copy;", "&trade;", "&reg;"},
+			name:            "typographic extension converts punctuation and shortcuts",
+			cfg:             defaultMarkdownTestConfig(),
+			input:           `"quoted" -- text ... and Copyright (c) TextoVista(tm) Registered(r) Section (p) Service(sm) +- 1/2 -> done => end`,
+			wantContains:    []string{"&ldquo;quoted&rdquo;", "&hellip;", "&ndash;", "&copy;", "&trade;", "&reg;", "&sect;", "&#8480;", "&plusmn;", "&frac12;", "&rarr;", "&rArr;"},
 			wantNotContains: []string{"..."},
 		},
 		{
@@ -207,20 +209,20 @@ func TestCreateGoldmarkInstanceFeatureMatrix(t *testing.T) {
 				cfg.useTypographic = false
 				return cfg
 			}(),
-			input: `Copyright (c) 2026 TextoVista(tm) Registered(r)`,
-			wantContains: []string{"(c)", "(tm)", "(r)"},
-			wantNotContains: []string{"&copy;", "&trade;", "&reg;"},
+			input:           `Copyright (c) 2026 TextoVista(tm) Registered(r) (p) (sm) +- 1/2 -> =>`,
+			wantContains:    []string{"(c)", "(tm)", "(r)", "(p)", "(sm)", "+-", "1/2", "-&gt;", "=&gt;"},
+			wantNotContains: []string{"&copy;", "&trade;", "&reg;", "&sect;", "&#8480;", "&plusmn;", "&frac12;", "&rarr;", "&rArr;"},
 		},
 		{
-			name: "katex extension renders katex markup",
-			cfg:  defaultMarkdownTestConfig(),
-			input: `$x^2$`,
+			name:         "katex extension renders katex markup",
+			cfg:          defaultMarkdownTestConfig(),
+			input:        `$x^2$`,
 			wantContains: []string{`\(x^2\)`},
 		},
 		{
-			name: "d2 extension renders svg output",
-			cfg:  defaultMarkdownTestConfig(),
-			input: "```d2\na -> b\n```",
+			name:         "d2 extension renders svg output",
+			cfg:          defaultMarkdownTestConfig(),
+			input:        "```d2\na -> b\n```",
 			wantContains: []string{"<svg"},
 		},
 		{
@@ -230,14 +232,14 @@ func TestCreateGoldmarkInstanceFeatureMatrix(t *testing.T) {
 				cfg.useSanitize = true
 				return cfg
 			}(),
-			input: `<script>alert('xss')</script><p>safe</p>`,
-			wantContains: []string{"safe"},
+			input:           `<script>alert('xss')</script><p>safe</p>`,
+			wantContains:    []string{"safe"},
 			wantNotContains: []string{"<script>"},
 		},
 		{
-			name: "superscript and subscript enabled render sup and sub tags",
-			cfg:  defaultMarkdownTestConfig(),
-			input: "Water is H~2~O and power is 2^10^.",
+			name:         "superscript and subscript enabled render sup and sub tags",
+			cfg:          defaultMarkdownTestConfig(),
+			input:        "Water is H~2~O and power is 2^10^.",
 			wantContains: []string{"H<sub>2</sub>O", "2<sup>10</sup>"},
 		},
 		{
@@ -247,13 +249,13 @@ func TestCreateGoldmarkInstanceFeatureMatrix(t *testing.T) {
 				cfg.useSuperSubScript = false
 				return cfg
 			}(),
-			input: "Water is H~2~O and power is 2^10^.",
+			input:           "Water is H~2~O and power is 2^10^.",
 			wantNotContains: []string{"<sub>2</sub>", "<sup>10</sup>"},
 		},
 		{
-			name: "inline text highlighting enabled renders mark tags",
-			cfg:  defaultMarkdownTestConfig(),
-			input: "This is ==highlighted text== in markdown.",
+			name:         "inline text highlighting enabled renders mark tags",
+			cfg:          defaultMarkdownTestConfig(),
+			input:        "This is ==highlighted text== in markdown.",
 			wantContains: []string{"<mark>highlighted text</mark>"},
 		},
 		{
@@ -263,7 +265,7 @@ func TestCreateGoldmarkInstanceFeatureMatrix(t *testing.T) {
 				cfg.useInlineHighlighting = false
 				return cfg
 			}(),
-			input: "This is ==highlighted text== in markdown.",
+			input:           "This is ==highlighted text== in markdown.",
 			wantNotContains: []string{"<mark>"},
 		},
 	}

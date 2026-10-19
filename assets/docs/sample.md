@@ -100,6 +100,11 @@ The typographic extension automatically transforms straight ASCII punctuation in
 - Copyright (c) using `Copyright (c)`
 - Trademark(tm) using `Trademark(tm)`
 - Registered trademark (r) using `Registered trademark (r)`
+- Service mark(sm) using `Service mark(sm)`
+- Section symbol (p) using `Section symbol (p)`
+- Plus-minus sign: +- 5% tolerance using `+- 5%`
+- Common fractions: 1/2, 1/4, 3/4 using `1/2`, `1/4`, `3/4`
+- Arrows: -> (right), <- (left), <-> (bidirectional), => (double right), <== (double left), <=> (double bidirectional)
 
 ---
 
