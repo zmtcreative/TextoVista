@@ -30,6 +30,7 @@ type markdownTestConfig struct {
 	useAbbreviations bool
 	useKatex        bool
 	useD2           bool
+	useSuperSubScript bool
 	useAlertCallouts bool
 	alertStyle      string
 }
@@ -55,6 +56,7 @@ func defaultMarkdownTestConfig() markdownTestConfig {
 		useAbbreviations: true,
 		useKatex:         true,
 		useD2:            true,
+		useSuperSubScript: true,
 		useAlertCallouts: true,
 		alertStyle:       "GFMPlus",
 	}
@@ -81,6 +83,7 @@ func (c markdownTestConfig) UseTypographic() bool               { return c.useTy
 func (c markdownTestConfig) UseAbbreviations() bool             { return c.useAbbreviations }
 func (c markdownTestConfig) UseKatex() bool                     { return c.useKatex }
 func (c markdownTestConfig) UseD2Diagrams() bool                { return c.useD2 }
+func (c markdownTestConfig) UseSuperSubScript() bool            { return c.useSuperSubScript }
 func (c markdownTestConfig) UseAlertCallouts() bool             { return c.useAlertCallouts }
 func (c markdownTestConfig) AlertCalloutStyle() string          { return c.alertStyle }
 
@@ -216,6 +219,22 @@ func TestCreateGoldmarkInstanceFeatureMatrix(t *testing.T) {
 			input: `<script>alert('xss')</script><p>safe</p>`,
 			wantContains: []string{"safe"},
 			wantNotContains: []string{"<script>"},
+		},
+		{
+			name: "superscript and subscript enabled render sup and sub tags",
+			cfg:  defaultMarkdownTestConfig(),
+			input: "Water is H~2~O and power is 2^10^.",
+			wantContains: []string{"H<sub>2</sub>O", "2<sup>10</sup>"},
+		},
+		{
+			name: "superscript and subscript disabled do not render sup and sub tags",
+			cfg: func() markdownTestConfig {
+				cfg := defaultMarkdownTestConfig()
+				cfg.useSuperSubScript = false
+				return cfg
+			}(),
+			input: "Water is H~2~O and power is 2^10^.",
+			wantNotContains: []string{"<sub>2</sub>", "<sup>10</sup>"},
 		},
 	}
 

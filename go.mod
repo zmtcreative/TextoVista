@@ -13,6 +13,7 @@ require (
 	github.com/FurqanSoftware/goldmark-d2 v0.0.0-20260908065046-2b59e403e43b
 	github.com/alecthomas/chroma/v2 v2.27.0
 	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de
+	github.com/bowman2001/goldmark-supersubscript v0.1.0
 	github.com/d2lang/d2 v0.9.0
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/kingreatwill/goldmark-katex/v2 v2.1.0

@@ -27,12 +27,14 @@ import (
 	blockattr "github.com/mdigger/goldmark-attributes"
 	bracketedspan "github.com/nemunaire/goldmark-inline-attributes"
 	fences "github.com/stefanfritsch/goldmark-fences"
+	supersub "github.com/bowman2001/goldmark-supersubscript"
 	"github.com/yuin/goldmark"
 	emoji "github.com/yuin/goldmark-emoji"
 	highlighting "github.com/yuin/goldmark-highlighting/v2"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/renderer"
 	"github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
@@ -85,6 +87,7 @@ type ConfigProvider interface {
 	UseAbbreviations() bool
 	UseKatex() bool
 	UseD2Diagrams() bool
+	UseSuperSubScript() bool
 
     // Alert callouts configuration getters
     UseAlertCallouts() bool
@@ -326,7 +329,51 @@ func CreateGoldmarkInstance(configProvider ConfigProvider) goldmark.Markdown {
 		)
 	}
 
+	// Enable Superscript and Subscript if configured.
+	// Parsers and renderers run with priority 450 (ahead of GFM strikethrough at 500)
+	// so that single tildes (~sub~) are processed first, while double tildes (~~strike~~)
+	// fall through to strikethrough.
+	if configProvider.UseSuperSubScript() {
+		options = append(options,
+			goldmark.WithParserOptions(
+				parser.WithInlineParsers(
+					util.Prioritized(&singleTildeSubscriptParser{inner: supersub.NewSubscriptParser()}, 450),
+					util.Prioritized(supersub.NewSuperscriptParser(), 450),
+				),
+			),
+			goldmark.WithRendererOptions(
+				renderer.WithNodeRenderers(
+					util.Prioritized(supersub.NewSubscriptHTMLRenderer(), 450),
+					util.Prioritized(supersub.NewSuperscriptHTMLRenderer(), 450),
+				),
+			),
+		)
+	}
+
     return goldmark.New(options...)
+}
+
+// singleTildeSubscriptParser wraps the goldmark-supersubscript subscript parser
+// so that only single tildes (~sub~) are parsed as subscript, allowing double
+// tildes (~~strike~~) to fall through to the GFM strikethrough parser.
+type singleTildeSubscriptParser struct {
+	inner parser.InlineParser
+}
+
+func (s *singleTildeSubscriptParser) Trigger() []byte {
+	return s.inner.Trigger()
+}
+
+func (s *singleTildeSubscriptParser) Parse(parent ast.Node, block text.Reader, pc parser.Context) ast.Node {
+	line, _ := block.PeekLine()
+	count := 0
+	for i := 0; i < len(line) && line[i] == '~'; i++ {
+		count++
+	}
+	if count > 1 {
+		return nil
+	}
+	return s.inner.Parse(parent, block, pc)
 }
 
 // ConvertMarkdownToHTML converts a byte slice of Markdown content into HTML.

@@ -356,6 +356,21 @@
                     </p>
                   </div>
 
+                  <!-- Superscript/Subscript Support -->
+                  <div class="setting-group">
+                    <label class="checkbox-label">
+                      <input
+                        type="checkbox"
+                        v-model="localSettings.markdown.use_supersubscript"
+                      />
+                      <span class="checkbox-custom"></span>
+                      Superscript/Subscript Support
+                    </label>
+                    <p class="setting-description">
+                      Enable ^superscript^ and ~subscript~ formatting.
+                    </p>
+                  </div>
+
                   <!-- Image Figure Wrapping -->
                   <div class="setting-group">
                     <label class="checkbox-label">
@@ -564,7 +579,8 @@ const createDefaultSettings = (): Settings => {
       use_abbreviations: false,
       use_typographic: true,
       use_katex: true,
-      use_d2_diagrams: true
+      use_d2_diagrams: true,
+      use_supersubscript: true
     },
     alert_callouts: {
       use_alertcallouts: true,

@@ -44,6 +44,7 @@ func defaultConfig() *Config {
 			UseAbbreviations: false,
 			UseKatex:         true,
 			UseD2Diagrams:    true,
+			UseSuperSubScript: true,
 		},
 		AlertCallouts: AlertCalloutOptions{
 			UseAlertCallouts:  true,
@@ -90,6 +91,7 @@ type MarkdownOptions struct {
 	UseTypographic   bool `mapstructure:"use_typographic" json:"use_typographic"`     // Typographic Extensions to Use Fancy Quotes
 	UseKatex         bool `mapstructure:"use_katex" json:"use_katex"`                 // KaTeX Support for Mathematical Expressions
 	UseD2Diagrams    bool `mapstructure:"use_d2_diagrams" json:"use_d2_diagrams"`     // D2 Diagrams Support
+	UseSuperSubScript bool `mapstructure:"use_supersubscript" json:"use_supersubscript"` // Superscript and Subscript Support
 }
 
 // Alert Callouts Settings
@@ -161,6 +163,7 @@ func NewConfigManager() *ConfigManager {
 	v.SetDefault("markdown.use_abbreviations", false)
 	v.SetDefault("markdown.use_katex", true)
 	v.SetDefault("markdown.use_d2_diagrams", true)
+	v.SetDefault("markdown.use_supersubscript", true)
 
 	// Set default values for Alert Callouts section
 	v.SetDefault("alert_callouts.use_alertcallouts", true)
@@ -290,6 +293,7 @@ func (cm *ConfigManager) SaveConfig() error {
 	cm.viper.Set("markdown.use_abbreviations", cm.config.Markdown.UseAbbreviations)
 	cm.viper.Set("markdown.use_katex", cm.config.Markdown.UseKatex)
 	cm.viper.Set("markdown.use_d2_diagrams", cm.config.Markdown.UseD2Diagrams)
+	cm.viper.Set("markdown.use_supersubscript", cm.config.Markdown.UseSuperSubScript)
 
 	// Update viper with current config values for Alert Callouts section
 	cm.viper.Set("alert_callouts.use_alertcallouts", cm.config.AlertCallouts.UseAlertCallouts)
@@ -464,6 +468,12 @@ func (cm *ConfigManager) UseD2Diagrams() bool {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 	return cm.config.Markdown.UseD2Diagrams
+}
+
+func (cm *ConfigManager) UseSuperSubScript() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.Markdown.UseSuperSubScript
 }
 
 // Alert callouts configuration getters

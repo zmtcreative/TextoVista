@@ -31,6 +31,7 @@ export function createConfigFixture(overrides: Partial<app.Config> = {}): app.Co
       use_typographic: true,
       use_katex: true,
       use_d2_diagrams: true,
+      use_supersubscript: true,
       ...(overrides.markdown ?? {}),
     },
     alert_callouts: {

@@ -61,6 +61,9 @@ func TestNewConfigManager(t *testing.T) {
 	if !config.Markdown.UseMermaid {
 		t.Error("Default UseMermaid should be true")
 	}
+	if !config.Markdown.UseSuperSubScript {
+		t.Error("Default UseSuperSubScript should be true")
+	}
 
 	// Test Alert Callouts defaults
 	if !config.AlertCallouts.UseAlertCallouts {
@@ -426,6 +429,7 @@ func TestConfigManagerMarkdownFeatureGetters(t *testing.T) {
 			UseAbbreviations: true,
 			UseKatex:         false,
 			UseD2Diagrams:    true,
+			UseSuperSubScript: false,
 		},
 		AlertCallouts: AlertCalloutOptions{
 			UseAlertCallouts:  false,
@@ -459,6 +463,7 @@ func TestConfigManagerMarkdownFeatureGetters(t *testing.T) {
 		{name: "UseAbbreviations", got: cm.UseAbbreviations(), want: true},
 		{name: "UseKatex", got: cm.UseKatex(), want: false},
 		{name: "UseD2Diagrams", got: cm.UseD2Diagrams(), want: true},
+		{name: "UseSuperSubScript", got: cm.UseSuperSubScript(), want: false},
 		{name: "UseAlertCallouts", got: cm.UseAlertCallouts(), want: false},
 		{name: "GetUseAdvancedFontDetection", got: cm.GetUseAdvancedFontDetection(), want: false},
 	}
@@ -575,6 +580,7 @@ func TestLoadConfigUsesDefaultsWhenFileMissing(t *testing.T) {
 	v.SetDefault("markdown.use_abbreviations", false)
 	v.SetDefault("markdown.use_katex", true)
 	v.SetDefault("markdown.use_d2_diagrams", true)
+	v.SetDefault("markdown.use_supersubscript", true)
 	v.SetDefault("alert_callouts.use_alertcallouts", true)
 	v.SetDefault("alert_callouts.alertcallout_style", "GFMPlus")
 

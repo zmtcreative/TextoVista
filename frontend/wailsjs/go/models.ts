@@ -60,6 +60,7 @@ export namespace app {
 	    use_typographic: boolean;
 	    use_katex: boolean;
 	    use_d2_diagrams: boolean;
+	    use_supersubscript: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new MarkdownOptions(source);
@@ -82,6 +83,7 @@ export namespace app {
 	        this.use_typographic = source["use_typographic"];
 	        this.use_katex = source["use_katex"];
 	        this.use_d2_diagrams = source["use_d2_diagrams"];
+	        this.use_supersubscript = source["use_supersubscript"];
 	    }
 	}
 	export class Config {
