@@ -172,9 +172,9 @@ jobs:
           $env:Path += ';' + $nsisDir
           Get-Command makensis
 
-      - name: Build Windows NSIS Installer
+      - name: Build Windows NSIS Installer and Portable ZIP
         shell: pwsh
-        run: ./scripts/Build-WailsInstaller.ps1 -NSIS -NoTests
+        run: ./scripts/Build-WailsInstaller.ps1 -NSIS -Zip -NoTests
 
       # The following two steps are redundant because Build-WailsInstaller.ps1 -NSIS
       # automatically handles compressing the installer and generating SHA256/SHA1 hashes.
@@ -200,9 +200,9 @@ jobs:
       #     "$sha256Hash  $($zipFile.Name)" | Out-File -FilePath ($zipFile.FullName + '.sha256') -Encoding utf8
       #     "$sha1Hash  $($zipFile.Name)" | Out-File -FilePath ($zipFile.FullName + '.sha1') -Encoding utf8
 
-      - name: Build Portable Windows Package
-        shell: pwsh
-        run: ./scripts/Build-WailsInstaller.ps1 -Zip -NoTest
+      # - name: Build Portable Windows Package
+      #   shell: pwsh
+      #   run: ./scripts/Build-WailsInstaller.ps1 -Zip -NoTest
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v7
