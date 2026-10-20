@@ -1,64 +1,112 @@
 # TextoVista
 
-[![License](https://img.shields.io/github/license/zmtcreative/markdown-reader)](./LICENSE.md)
-![GitHub Release](https://img.shields.io/github/v/release/zmtcreative/markdown-reader?sort=semver)
+[![License](https://img.shields.io/github/license/zmtcreative/TextoVista)](./LICENSE.md)
+![GitHub Release](https://img.shields.io/github/v/release/zmtcreative/TextoVista?sort=semver)
 
 Copyright &copy; 2026 ZMT Creative LLC. All rights reserved.
 
-## About and Features
+## About TextoVista
 
-TextoVista is a Markdown reader written in Go using the Wails + Vue framework.
+TextoVista is a fast, modern desktop Markdown reader written in Go and TypeScript using the [Wails v2](https://wails.io/) desktop application framework and [Vue 3](https://vuejs.org/).
 
-The reader supports the current CommonMark spec plus a wide range of Extension:
+The reader conforms to the [CommonMark 0.30](https://spec.commonmark.org/) specification powered by [Goldmark](https://github.com/yuin/goldmark) and includes an extensive suite of extensions for technical documentation, diagrams, mathematical expressions, advanced typography, and custom styling.
 
-(*All options below are enabled by default unless noted otherwise*)
+## Major Features
 
-- GitHub Flavored Markdown and PHP Markdown Extensions
-  - GFM: Tables
-  - GFM: Strikethrough
-  - GFM: Autolinks
-  - GFM: Task List Items
-  - PHP: Definition Lists
-  - PHP: Footnotes
-- Typographic Enhancements (*like [smartypants](https://daringfireball.net/projects/smartypants/)*)
-  - Fancy quotes
-  - Proper en-dash and em-dash
-  - Proper ellipsis rendering
-- Emojis
-- Inline HTML  (*allows inclusion of bare HTML in Markdown -- __Potentially Unsafe__*)
-- Sanitize HTML  (*removes some potential dangerous HTML elements and disables potentially dangerous URLs with executable file extensions in the URL -- __should be enabled when using Inline HTML__*)
-- Frontmatter Parsing  (*currently can use the __Title:__ and __Date:__ entries in markdown frontmatter*)
-- Mermaid Diagrams and Charts
-- Image Figure Wrapping  (*provides a syntax for including captions with images*)
-<!-- - [//]#: - Header Anchor Links -->
-- Fenced DIVs  (*works similar to fenced code blocks but uses `:::` to surround sections you want to wrap with a DIV element*)
-- Header Section Wrapper  (*nested wrapping of heading and all their content to keep section levels together since `<H?>` headings don't wrap the sections they represent*)
-- Code Syntax Highlighting  (*provides syntax highlighting of fenced code blocks*)
-- Pandoc-Style Fancy Lists  (*creating ordered lists using letters and roman numerals*)
-- Alerts/Callouts  (*uses `> [!NOTE]` style markdown syntax to create GFM and/or Obsidian Callouts*)
-- Block Attributes  (*allows you to add recognized HTML attributes to block elements using the `{.myclass #myid title="mytitle"}` syntax*)
-- Bracketed Spans  (*allows you to wrap some text in brackets to create spans -- `this is [some text]{.myclass}` that would wrap the `some text` and render as `<span class="myclass">some text</span>`*)
-- Proportional Font and Code Font Customization (*you can set the font family and font size you want the reader to use*)
+All features can be toggled and configured via the **File | Settings** dialog (`Ctrl+,`). Settings can be applied for the active session or saved persistently to the application configuration file.
+
+### Core Markdown & Specifications
+
+- **CommonMark Compliance**: Full support for standard CommonMark elements (headings, blockquotes, code blocks, lists, links, images).
+- **GitHub Flavored Markdown (GFM)**:
+  - Tables with column alignment
+  - Task list items with interactive checkboxes
+  - Strikethrough (`~~text~~`)
+  - Autolinks for URLs and email addresses
+- **PHP Markdown Extra**:
+  - Definition lists (`Term` followed by `: Definition`)
+  - Footnotes (`[^1]` reference and `[^1]: Note`)
+  - Abbreviations (`*[HTML]: HyperText Markup Language`)
+
+### Inline Formatting & Typography
+
+- **Text Insertion**: Semantic `<ins>` inserted text markup using `++inserted text++`.
+- **Inline Text Highlighting**: Semantic `<mark>` highlighting using `==highlighted text==`.
+- **Superscript & Subscript**: Clean mathematical and chemical notations using `^superscript^` and `~subscript~` (with intelligent discrimination preserving `~~strikethrough~~`).
+- **Typographic Enhancements (SmartyPants)**:
+  - Smart curly quotes (`"quotes"` and `'quotes'`)
+  - En-dashes (`--`) and em-dashes (`---`)
+  - Proper typographic ellipsis (`...`)
+- **Typographic Symbol Shortcuts**:
+  - Copyright `(c)` &rarr; &copy;
+  - Registered trademark `(r)` &rarr; &reg;
+  - Trademark `(tm)` &rarr; &trade;
+  - Service mark `(sm)` &rarr; &#8480;
+  - Section symbol `(p)` &rarr; &sect;
+  - Plus-minus sign `+-` &rarr; &plusmn;
+  - Common fractions `(1/2)`, `(1/4)`, `(3/4)` &rarr; &frac12;, &frac14;, &frac34;
+  - Directional arrows: `->`, `<-`, `<->`, `=>`, `<=`, `<=>`
+- **Emoji Support**: Shortcode and unicode emoji conversions (e.g., `:rocket:`, `:white_check_mark:`).
+
+### Visualizations & Mathematics
+
+- **Mermaid Diagrams & Charts**: Native client-side rendering for flowcharts, sequence diagrams, state diagrams, class diagrams, Gantt charts, and Git graphs via fenced ```` ```mermaid ```` code blocks.
+- **D2 Software Architecture Diagrams**: Server-compiled vector diagrams from fenced ```` ```d2 ```` blocks rendered via the Elk layout engine and modern color themes.
+- **KaTeX Mathematical Typesetting**: High-fidelity formula rendering for inline equations (`$...$`) and display blocks (`$$...$$`).
+- **Code Syntax Highlighting**: Fast, colorful code block syntax highlighting powered by Chroma across dozens of programming and configuration languages.
+
+### Layout & Structural Extensions
+
+- **Alert Callouts & Admonitions**: Styled callout blocks using `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, and `> [!CAUTION]`. Supports four configurable icon and alias themes:
+  - *Strict GFM*: Standard 5 GitHub alert types
+  - *GFM with Aliases*: Standard GFM alerts with common name aliases
+  - *GFM Plus*: GFM alerts combined with popular Obsidian callouts and custom icons
+  - *Obsidian-Style*: Complete Obsidian callout taxonomy and iconography
+- **Heading Section Wrapper**: Automatic hierarchical nesting of heading levels within semantic `<section>` elements to maintain logical document structure.
+- **Heading Anchor Links**: Automatically generated heading IDs with `#` anchor links for smooth in-document navigation.
+- **Fenced DIVs**: Container wrapper syntax using `:::` blocks for targeted CSS class styling.
+- **Block Attributes & Bracketed Spans**: Apply custom IDs, classes, and attributes to blocks (`{.custom-class #element-id}`) and inline spans (`[styled text]{.badge}`).
+- **Pandoc-Style Fancy Lists**: Advanced ordered lists supporting alphabetical letters (`A.`, `a.`) and Roman numerals (`I.`, `i.`).
+- **Image Figure Wrapping**: Enclose images with captions into semantic `<figure>` and `<figcaption>` elements.
+
+### Reader & Application Capabilities
+
+- **Document History Navigation**: In-app navigation history stack with a toolbar **Back** button to easily trace links between Markdown files.
+- **Frontmatter Metadata Drawer**: Automatic parsing of YAML, TOML, and JSON frontmatter with an interactive metadata drawer in the toolbar.
+- **Live File Watching**: Instant document re-rendering when the active file is modified on disk using background `fsnotify` file watchers.
+- **Font Customization**:
+  - System font detection across Windows and Linux
+  - Independent proportional and monospace font family selectors
+  - Granular font size controls
+- **Defense-in-Depth Security**:
+  - Strict filesystem path validation preventing directory traversal
+  - File size safety limits
+  - Two-tier HTML sanitization combining Go backend policy filters with frontend DOMPurify validation
+  - Safe inline HTML mode with configurable sanitization rules
 
 ## Status
 
 > [!NOTE]
 >
-> Still in Beta stage.
+> TextoVista is currently in **Beta** release.
 
-The application is useable in its current form, with extensive settings available to control
-which Markdown/Commonmark features and Extensions are displayed. The `File | Settings` dialog lets you change settings just for the current session or save the settings to a config file.
+The application is fully functional for everyday document reading, browsing linked markdown notes, and previewing technical documents containing diagrams, code, and mathematical formulas.
 
-The CSS styling for the application is still in-progress, so the look of rendered markdown may
-not be consistent, though it should be adequate for now.
+### Current Implementation State
 
-__Very__ rudimentary printing support is available, but the CSS styling for printing has
-not been tweaked, so print output will be useable but not necessarily ideal.
+- **Markdown Engine**: Feature-complete with Goldmark 1.8+, D2, Mermaid 12, KaTeX, Chroma syntax highlighting, and an extensive suite of Goldmark extensions.
+- **Configuration & Settings**: Fully customizable via the `File | Settings` dialog (`Ctrl+,`) with session and persistent configuration management.
+- **Navigation & Usability**: Full document history tracking, smooth internal anchor jumping, and automatic file reloading.
+- **Security**: Robust IPC boundary validation and dual-layer HTML sanitization protecting against malicious content.
 
-Development is still ongoing.
+### Ongoing Development
+
+- **CSS & Themes**: Active styling polish to ensure harmonious visual presentation across all markdown elements, themes, and diagram types.
+- **Printing**: Rudimentary printing support is implemented; dedicated print stylesheets and layout adjustments are in progress.
+- **Platform Packaging**: Windows installer (NSIS) and Linux packaging workflows are actively maintained and continuously tested.
 
 ## Collaboration
 
-This application is currently being privately developed and we are not (currently) accepting collaborators, feature requests or pull-requests.
+This application is currently privately developed and is not accepting external collaborators, feature requests, or pull requests at this time.
 
-The repository __is__ public and you are welcome to fork the project and modify it as you see fit, provided you adhere to the [LICENSE](LICENSE) and provide attribution in your `README.md` or a `NOTICE.md` file in your forked repository.
+The repository is public under the terms of the [Apache 2.0 License](./LICENSE.md). You are welcome to fork the project and modify it as you see fit, provided you adhere to the license and provide appropriate attribution in your `README.md` or `NOTICE.md` file.
