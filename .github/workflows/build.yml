@@ -176,27 +176,29 @@ jobs:
         shell: pwsh
         run: ./scripts/Build-WailsInstaller.ps1 -NSIS -NoTests
 
-      - name: Zip NSIS Installer Package
-        shell: pwsh
-        run: |
-          $installer = Get-ChildItem -Path build/bin -Filter *-installer.exe | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-          if (-not $installer) {
-            throw 'No NSIS installer executable found in build/bin.'
-          }
-          $zipPath = Join-Path $installer.DirectoryName ($installer.BaseName + '.zip')
-          Compress-Archive -Path $installer.FullName -DestinationPath $zipPath -Force
+      # The following two steps are redundant because Build-WailsInstaller.ps1 -NSIS
+      # automatically handles compressing the installer and generating SHA256/SHA1 hashes.
+      # - name: Zip NSIS Installer Package
+      #   shell: pwsh
+      #   run: |
+      #     $installer = Get-ChildItem -Path build/bin -Filter *-installer.exe | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+      #     if (-not $installer) {
+      #       throw 'No NSIS installer executable found in build/bin.'
+      #     }
+      #     $zipPath = Join-Path $installer.DirectoryName ($installer.BaseName + '.zip')
+      #     Compress-Archive -Path $installer.FullName -DestinationPath $zipPath -Force
 
-      - name: Write NSIS Zip Hashes
-        shell: pwsh
-        run: |
-          $zipFile = Get-ChildItem -Path build/bin -Filter *-installer.zip | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-          if (-not $zipFile) {
-            throw 'No installer zip file found in build/bin.'
-          }
-          $sha256Hash = (Get-FileHash $zipFile.FullName -Algorithm SHA256).Hash
-          $sha1Hash = (Get-FileHash $zipFile.FullName -Algorithm SHA1).Hash
-          "$sha256Hash  $($zipFile.Name)" | Out-File -FilePath ($zipFile.FullName + '.sha256') -Encoding utf8
-          "$sha1Hash  $($zipFile.Name)" | Out-File -FilePath ($zipFile.FullName + '.sha1') -Encoding utf8
+      # - name: Write NSIS Zip Hashes
+      #   shell: pwsh
+      #   run: |
+      #     $zipFile = Get-ChildItem -Path build/bin -Filter *-installer.zip | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+      #     if (-not $zipFile) {
+      #       throw 'No installer zip file found in build/bin.'
+      #     }
+      #     $sha256Hash = (Get-FileHash $zipFile.FullName -Algorithm SHA256).Hash
+      #     $sha1Hash = (Get-FileHash $zipFile.FullName -Algorithm SHA1).Hash
+      #     "$sha256Hash  $($zipFile.Name)" | Out-File -FilePath ($zipFile.FullName + '.sha256') -Encoding utf8
+      #     "$sha1Hash  $($zipFile.Name)" | Out-File -FilePath ($zipFile.FullName + '.sha1') -Encoding utf8
 
       - name: Build Portable Windows Package
         shell: pwsh
