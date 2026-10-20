@@ -15,20 +15,19 @@
         latest Git commit) that would be used for the build, but without actually
         performing the build.
 
-        You can use the -Build, -NSIS, -UPX, and -ZipFile switches to
-        perform the build, create an NSIS installer, compress the executable,
-        and package the installer into a ZIP file.
+        You can use the -Build, -NSIS, and -Zip switches to perform the build,
+        create and package an NSIS installer into a ZIP file, or bundle the executable
+        into a portable ZIP distribution.
     .PARAMETER Build
         Run the build process without generating the NSIS installer.
     .PARAMETER NSIS
-        Implies -Build. Create the NSIS installer after building.
-    .PARAMETER UPX
-        Implies -Build. Use UPX to compress the executable file.
+        Implies -Build. Create the NSIS installer after building, compress it into a
+        ZIP file, and generate SHA256 and SHA1 hashes for the ZIP.
+    .PARAMETER Zip
+        Implies -Build. Package the executable into a portable ZIP distribution
+        (TextoVista-<version>-amd64-portable.zip) and generate SHA256 and SHA1 hashes.
     .PARAMETER RunAllTests
         Run the full frontend test suite when invoking Run-AllTests.ps1 before building.
-    .PARAMETER ZipFile
-        Implies -NSIS. After creating the NSIS installer, compresses it into a
-        ZIP file and generates SHA256 and SHA1 hashes for the ZIP.
     .PARAMETER NoTests
         Bypass Run-AllTests.ps1 before building.
 #>
@@ -40,18 +39,16 @@ param (
     [Parameter(Mandatory = $false, HelpMessage = "Run the build process without generating the NSIS installer.")]
     [Alias("b","exe")]
     [switch]$Build,
-    [Parameter(Mandatory = $false, HelpMessage = "(Implies -Build) Create the NSIS installer after building.")]
+    [Parameter(Mandatory = $false, HelpMessage = "(Implies -Build) Create the NSIS installer and compress it into a ZIP file with hashes.")]
     [Alias("i","installer")]
     [switch]$NSIS,
-    [Parameter(Mandatory = $false, HelpMessage = "(Implies -Build) Use UPX to compress the executable file.")]
-    [Alias("u","c","compress","compact")]
-    [switch]$UPX,
-    [Parameter(Mandatory = $false, HelpMessage = "(Implies -NSIS) Compress the NSIS installer into a ZIP file and generate hashes for it.")]
-    [Alias("z","zip")]
-    [switch]$ZipFile,
+    [Parameter(Mandatory = $false, HelpMessage = "(Implies -Build) Create a portable ZIP package containing the executable with hashes.")]
+    [Alias("z","portable")]
+    [switch]$Zip,
     [Parameter(Mandatory = $false, HelpMessage = "Run the full frontend test suite before building.")]
     [switch]$RunAllTests,
     [Parameter(Mandatory = $false, HelpMessage = "Bypass running tests before building.")]
+    [Alias("NoTest")]
     [switch]$NoTests
 )
 
@@ -74,7 +71,7 @@ if (Test-Path -Path "$tmpProjectRoot\wails.json") {
 # Set the default behavior to show the current version and file version
 # without performing the build.
 $ShowVersionOnly = $true
-if ($Build -or $NSIS -or $UPX -or $ZipFile) {
+if ($Build -or $NSIS -or $Zip) {
     $ShowVersionOnly = $false
 }
 
@@ -853,6 +850,63 @@ function Invoke-AllTests {
     return $false
 }
 
+function Test-ExecutableIsUpToDate {
+    <#
+    .SYNOPSIS
+        Checks if the compiled executable is newer than all relevant project source files.
+    .DESCRIPTION
+        Compares the LastWriteTimeUtc of the specified executable against all Go, frontend,
+        and build configuration files. Returns $true if the binary exists and no sources
+        have been modified since the binary was compiled.
+    .PARAMETER ExecutablePath
+        The path to the executable to inspect.
+    #>
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$ExecutablePath
+    )
+
+    if (-not (Test-Path -Path $ExecutablePath -PathType Leaf)) {
+        return $false
+    }
+
+    $exeTime = (Get-Item -Path $ExecutablePath).LastWriteTimeUtc
+
+    $sourceScanPaths = @(
+        "app.go",
+        "main.go",
+        "go.mod",
+        "go.sum",
+        "wails.json",
+        "frontend/src",
+        "frontend/index.html",
+        "frontend/package.json",
+        "frontend/vite.config.ts"
+    )
+
+    foreach ($relPath in $sourceScanPaths) {
+        $fullPath = Join-Path $ProjectRoot $relPath
+        if (-not (Test-Path -Path $fullPath)) {
+            continue
+        }
+
+        if (Test-Path -Path $fullPath -PathType Leaf) {
+            if ((Get-Item -Path $fullPath).LastWriteTimeUtc -gt $exeTime) {
+                return $false
+            }
+        } else {
+            $items = Get-ChildItem -Path $fullPath -Recurse -File -ErrorAction SilentlyContinue
+            foreach ($item in $items) {
+                if ($item.LastWriteTimeUtc -gt $exeTime) {
+                    return $false
+                }
+            }
+        }
+    }
+
+    return $true
+}
+
 function Invoke-WailsBuild {
     <#
     .SYNOPSIS
@@ -862,21 +916,18 @@ function Invoke-WailsBuild {
         flags and environment variables.
     #>
     $NSISOption = ""
-    $UPXOption  = ""
     $ProjectNSI = Join-Path $ProjectRoot "build" "windows" "installer" "project.nsi"
     $WailsJsonPath = Join-Path $ProjectRoot "wails.json"
     $PackageJsonPath = Join-Path $ProjectRoot "frontend" "package.json"
     $InfoJsonPath = Join-Path $ProjectRoot "build" "windows" "info.json"
+    $binDir = Join-Path $ProjectRoot "build" "bin"
+    $exePath = Join-Path $binDir "texto-vista.exe"
 
-    if ($ZipFile) {
-        $NSIS = $true
-    }
     if ($NSIS) {
         $NSISOption = "-nsis"
         $Build = $true
     }
-    if ($UPX) {
-        $UPXOption = "-upx"
+    if ($Zip) {
         $Build = $true
     }
 
@@ -926,44 +977,56 @@ function Invoke-WailsBuild {
     }
 
     if ($Build) {
-        if (-not $NoTests) {
-            $testExecutionPlan = Get-TestExecutionPlan -RequestedSuite (Get-RequestedFrontendTestSuite)
-            if ($testExecutionPlan.ShouldRun) {
-                Write-Host -ForegroundColor Yellow $testExecutionPlan.Reason
-                if (-not (Invoke-AllTests)) {
-                    return
-                }
-            } else {
-                Write-Host -ForegroundColor Cyan $testExecutionPlan.Reason
+        # Check if the existing binary is up to date when only packaging a portable ZIP
+        $skipCompilation = $false
+        if ($Zip -and (-not $NSIS)) {
+            if (Test-ExecutableIsUpToDate -ExecutablePath $exePath) {
+                $skipCompilation = $true
+                Write-Host -ForegroundColor Green "Executable 'texto-vista.exe' is already up to date with sources. Skipping Wails compilation."
             }
         }
 
-        if ($NSIS) {
-            Update-ProjectNSI -ProjectNSIPath $ProjectNSI -FileVersion $FileVersion
+        if (-not $skipCompilation) {
+            if (-not $NoTests) {
+                $testExecutionPlan = Get-TestExecutionPlan -RequestedSuite (Get-RequestedFrontendTestSuite)
+                if ($testExecutionPlan.ShouldRun) {
+                    Write-Host -ForegroundColor Yellow $testExecutionPlan.Reason
+                    if (-not (Invoke-AllTests)) {
+                        return
+                    }
+                } else {
+                    Write-Host -ForegroundColor Cyan $testExecutionPlan.Reason
+                }
+            }
+
+            if ($NSIS) {
+                Update-ProjectNSI -ProjectNSIPath $ProjectNSI -FileVersion $FileVersion
+            }
+            Update-WailsJSON -WailsJsonPath $WailsJsonPath -Version $Version
+            Update-PackageJSON -PackageJsonPath $PackageJsonPath -Version $Version
+            Update-InfoJSON -InfoJsonPath $InfoJsonPath -FileVersion $FileVersion
+
+            Write-Host -NoNewLine -ForegroundColor Cyan "Building Wails application with version value: "
+            Write-Host -NoNewLine -ForegroundColor Black -BackgroundColor White "$Version"
+            Write-Host "`n`n$('=' * 78)"
+            wails build -clean -ldflags "-X main.Version=${Version} -X main.Date=${Date} -X main.Commit=${Commit} -s -w" ${NSISOption}
+            Write-Host "$('=' * 78)`n"
+
+            # Create SHA1 and SHA256 hashes for the executable files
+            New-FileHashes -DirectoryPath $binDir -FilePattern "*.exe"
+
+            Restore-RepositoryToCleanState
         }
-        Update-WailsJSON -WailsJsonPath $WailsJsonPath -Version $Version
-        Update-PackageJSON -PackageJsonPath $PackageJsonPath -Version $Version
-        Update-InfoJSON -InfoJsonPath $InfoJsonPath -FileVersion $FileVersion
 
-        Write-Host -NoNewLine -ForegroundColor Cyan "Building Wails application with version value: "
-        Write-Host -NoNewLine -ForegroundColor Black -BackgroundColor White "$Version"
-        Write-Host "`n`n$('=' * 78)"
-        wails build -clean -ldflags "-X main.Version=${Version} -X main.Date=${Date} -X main.Commit=${Commit} -s -w" ${NSISOption} ${UPXOption}
-        Write-Host "$('=' * 78)`n"
-
-        # Create SHA1 and SHA256 hashes for the executable files
-        New-FileHashes -DirectoryPath (Join-Path $ProjectRoot "build" "bin") -FilePattern "*.exe"
-
-        if ($ZipFile) {
-            $binDir = Join-Path $ProjectRoot "build" "bin"
+        if ($NSIS) {
             $installer = Get-ChildItem -Path $binDir -Filter "*-installer.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
             if (-not $installer) {
                 Write-Host -ForegroundColor Red "No NSIS installer executable found in $binDir."
             } else {
                 $zipPath = Join-Path $installer.DirectoryName ($installer.BaseName + ".zip")
-                Write-Host -ForegroundColor Cyan "Compressing installer into ZIP: $zipPath"
+                Write-Host -ForegroundColor Cyan "Compressing NSIS installer into ZIP: $zipPath"
                 Compress-Archive -Path $installer.FullName -DestinationPath $zipPath -Force
-                Write-Host -ForegroundColor Cyan "Writing sha256 and sha1 hashes for ZIP file..."
+                Write-Host -ForegroundColor Cyan "Writing sha256 and sha1 hashes for NSIS ZIP file..."
                 $sha256Hash = (Get-FileHash $zipPath -Algorithm SHA256).Hash
                 $sha1Hash = (Get-FileHash $zipPath -Algorithm SHA1).Hash
                 $zipName = Split-Path -Leaf $zipPath
@@ -972,7 +1035,21 @@ function Invoke-WailsBuild {
             }
         }
 
-        Restore-RepositoryToCleanState
+        if ($Zip) {
+            if (-not (Test-Path -Path $exePath -PathType Leaf)) {
+                Write-Host -ForegroundColor Red "No executable found to package in $exePath."
+            } else {
+                $portableZipName = "TextoVista-${Version}-amd64-portable.zip"
+                $portableZipPath = Join-Path $binDir $portableZipName
+                Write-Host -ForegroundColor Cyan "Compressing portable executable into ZIP: $portableZipPath"
+                Compress-Archive -Path $exePath -DestinationPath $portableZipPath -Force
+                Write-Host -ForegroundColor Cyan "Writing sha256 and sha1 hashes for portable ZIP file..."
+                $sha256Hash = (Get-FileHash $portableZipPath -Algorithm SHA256).Hash
+                $sha1Hash = (Get-FileHash $portableZipPath -Algorithm SHA1).Hash
+                "$sha256Hash  $portableZipName" | Out-File -FilePath ($portableZipPath + ".sha256") -Encoding utf8
+                "$sha1Hash  $portableZipName" | Out-File -FilePath ($portableZipPath + ".sha1") -Encoding utf8
+            }
+        }
     }
 }
 
