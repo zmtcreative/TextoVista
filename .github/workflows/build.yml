@@ -9,6 +9,9 @@ on:
       - 'docs/**'
       - 'scratch/**'
       - 'tmp/**'
+      - '.vscode/**'
+      - '.agent/**'
+      - '.gemini/**'
     tags:
       - 'v*'
   workflow_dispatch:
