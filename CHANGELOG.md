@@ -6,6 +6,28 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## v0.7.0 - 2026-10-19
+
+This release significantly expands TextoVista's Markdown rendering capabilities with rich inline formatting extensions and comprehensive typographic shortcuts. Users can now leverage subscript and superscript notation, inline text highlighting, text insertion markup, and an extended set of automatic typographic replacements, including legal symbols, vulgar fractions, and directional arrows, all backed by dedicated configuration toggles in the Settings dialog and custom SCSS styling.
+
+Additionally, Windows distribution and release automation have been streamlined with a new Scoop package manifest, consolidated NSIS installer packaging and hashing within the build scripts, and improved `package-lock.json` version synchronization. Project documentation has also been expanded with dedicated contribution guidelines, root-level architecture documentation, and an updated feature showcase.
+
+> [!WARNING]
+> This is still **Beta** software! It should be functional for general usage but likely still has bugs, and development is still ongoing.
+
+### CHANGES
+
+- Add: Added subscript (`~sub~`) and superscript (`^sup^`) Markdown support (`internal/markdown/markdown.go`, `github.com/bowman2001/goldmark-supersubscript`) with single-tilde discrimination to preserve GFM `~~strikethrough~~` parsing, enabled via the `UseSuperSubScript` configuration option and Settings toggle (`frontend/src/components/Settings.vue`).
+- Add: Added inline text highlighting (`==highlight==` -> `<mark>`) support (`github.com/zuern/goldmark-highlight`) with a `UseInlineHighlighting` configuration option, Settings dialog toggle, and theme-aware SCSS styling (`frontend/src/assets/scss/_main.scss`).
+- Add: Implemented a custom Goldmark text insertion extension (`++text++` -> `<ins>`) (`internal/gm-ext/insertion/insertion.go`) with a `UseTextInsertion` configuration option, Settings dialog toggle, and custom SCSS styling.
+- Add: Implemented an internal typographic shortcuts extension (`internal/gm-ext/shortcuts/shortcuts.go`) supporting case-insensitive legal and technical symbols (`(c)`, `(r)`, `(tm)`, `(p)`, `(sm)`, `+-`), boundary-checked vulgar fractions (`1/2`, `1/4`, `3/4`), and ASCII arrows (`->`, `<-`, `<->`, `=>`, `<==`, `<=>`) with HTML comment and comparison exclusions.
+- Add: Added a Scoop package manifest (`build/windows/scoop/TextoVista.json`) to support Windows portable installations.
+- Add: Added comprehensive unit and feature matrix test suites covering subscript/superscript, inline highlighting, text insertion, and typographic shortcut parsing (`internal/markdown/supersub_test.go`, `internal/markdown/highlight_test.go`, `internal/markdown/insertion_test.go`, `internal/gm-ext/insertion/insertion_test.go`, `internal/gm-ext/shortcuts/shortcuts_test.go`).
+- Update: Formatted the Go backend codebase with `gofmt` and updated Wails TypeScript models (`frontend/wailsjs/go/models.ts`) and test fixtures (`frontend/src/test-utils/config-fixtures.ts`) for the new Markdown configuration options.
+- CI/CD: Streamlined the Windows packaging workflow (`.github/workflows/build.yml`) and Wails installer build script (`scripts/Build-WailsInstaller.ps1`) by consolidating NSIS installer compression and SHA-256 hashing directly into the build script.
+- Scripts: Updated `scripts/Set-Version.ps1` to accurately synchronize version numbers in `frontend/package-lock.json`, and updated repository path references to `TextoVista-dev` in `scripts/Run-SyncToPublicRepo.ps1` and `scripts/verify-wsl-linux.sh`.
+- Docs: Added contribution guidelines (`CONTRIBUTING.md`), promoted and updated system architecture documentation (`ARCHITECTURE.md`), expanded `README.md` with a comprehensive feature breakdown, and updated sample showcase documents (`assets/docs/sample.md`, `docs/sample1.md`, `docs/test-inline-formatting.md`) with examples of all new inline formatting and typographic extensions.
+
 ## v0.6.0 - 2026-10-18
 
 This update delivers comprehensive security hardening, concurrency improvements, and enhanced document navigation across the Go backend and Vue frontend. Key architectural refinements strengthen IPC boundaries, prevent directory traversal and file resource exhaustion, and synchronize shared state across configuration, font, and theme managers to eliminate race conditions and resource leaks.
