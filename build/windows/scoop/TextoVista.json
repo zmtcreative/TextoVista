@@ -1,0 +1,30 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ScoopInstaller/Scoop/master/schema.json",
+  "version": "0.6.0",
+  "description": "A simple Markdown reader for Windows",
+  "homepage": "https://github.com/zmtcreative/TextoVista",
+  "license": "Apache-2.0",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/zmtcreative/TextoVista/releases/download/v0.6.0/TextoVista-0.6.0-amd64-portable.zip",
+      "hash": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  },
+  "bin": "texto-vista.exe",
+  "shortcuts": [
+    [
+      "texto-vista.exe",
+      "TextoVista"
+    ]
+  ],
+  "checkver": {
+    "github": "https://github.com/zmtcreative/TextoVista"
+  },
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/zmtcreative/TextoVista/releases/download/v$version/TextoVista-$version-amd64-portable.zip"
+      }
+    }
+  }
+}
