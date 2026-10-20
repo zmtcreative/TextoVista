@@ -362,6 +362,16 @@ jobs:
             exit 0
           }
 
+          if ($body -notmatch '<\s*details\b' -and $body -match '(?ms)^(.*?)###\s+CHANGES\s*\r?\n(.*)$') {
+            $intro = $Matches[1].TrimEnd()
+            $changes = $Matches[2].Trim()
+            if ([string]::IsNullOrWhiteSpace($intro)) {
+              $body = "<details>`n<summary><b>Details of Changes</b> (click to expand)</summary>`n`n$changes`n`n</details>"
+            } else {
+              $body = "$intro`n`n<details>`n<summary><b>Details of Changes</b> (click to expand)</summary>`n`n$changes`n`n</details>"
+            }
+          }
+
           $body | Out-File -FilePath $releaseNotesPath -Encoding utf8
           Write-Host "Release notes extracted to: $releaseNotesPath"
           Write-Host $body
