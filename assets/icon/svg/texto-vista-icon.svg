@@ -1,66 +1,692 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg width="300px" height="300px" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:1.5;">
-    <g transform="matrix(11.3661,0,0,19.5069,44,44)">
-        <g id="Shadow">
-            <path d="M85.87,4.823L85.87,45.21C85.87,47.872 82.161,50.033 77.592,50.033L8.277,50.033C3.709,50.033 0,47.872 0,45.21L0,4.823C0,2.161 3.709,0 8.277,0L77.592,0C82.161,0 85.87,2.161 85.87,4.823Z" style="fill-opacity:0.7;"/>
-        </g>
+<svg
+   viewBox="0 0 512 512"
+   width="100%"
+   height="100%"
+   version="1.1"
+   id="svg54"
+   sodipodi:docname="TextoVista-Idea-001.svg"
+   inkscape:version="1.4.4 (dcaf3e7, 2026-05-05)"
+   inkscape:export-filename="TextoVista-Idea-001_1024pxH.png"
+   inkscape:export-xdpi="198.99596"
+   inkscape:export-ydpi="198.99596"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <title
+     id="title54">TextoVista Logo</title>
+  <sodipodi:namedview
+     id="namedview54"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="true"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="2.2792969"
+     inkscape:cx="255.78063"
+     inkscape:cy="256"
+     inkscape:window-width="3440"
+     inkscape:window-height="1369"
+     inkscape:window-x="3432"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg54" />
+  <defs
+     id="defs22">
+    <color-profile
+       name="sRGB-IEC61966-2.1"
+       xlink:href="../../../../../../Windows/system32/spool/drivers/color/sRGB%20Color%20Space%20Profile.icm"
+       id="color-profile1" />
+    <!-- Background Gradient -->
+    <radialGradient
+       id="bg-grad"
+       cx="50%"
+       cy="40%"
+       r="60%">
+      <stop
+         offset="0%"
+         stop-color="#3b3fc4"
+         id="stop1" />
+      <stop
+         offset="50%"
+         stop-color="#2a289a"
+         id="stop2" />
+      <stop
+         offset="100%"
+         stop-color="#120c4a"
+         id="stop3" />
+    </radialGradient>
+    <!-- Document Subtle Shadows & Gradients -->
+    <linearGradient
+       id="doc-back-grad"
+       x1="109.46579"
+       y1="78.563359"
+       x2="363.42641"
+       y2="332.52399"
+       gradientTransform="scale(0.91352743,1.0946579)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#edf2f7"
+         id="stop4" />
+      <stop
+         offset="100%"
+         stop-color="#cbd5e0"
+         id="stop5" />
+    </linearGradient>
+    <!-- Magnifying Glass Rim Golden Gradients -->
+    <linearGradient
+       id="gold-rim"
+       x1="227.6"
+       y1="120"
+       x2="356.4"
+       y2="304"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#ffe66d"
+         id="stop6" />
+      <stop
+         offset="25%"
+         stop-color="#ffa000"
+         id="stop7" />
+      <stop
+         offset="50%"
+         stop-color="#e65100"
+         id="stop8" />
+      <stop
+         offset="75%"
+         stop-color="#ffa000"
+         id="stop9" />
+      <stop
+         offset="100%"
+         stop-color="#8d2400"
+         id="stop10" />
+    </linearGradient>
+    <!-- Lens Glass Tint -->
+    <radialGradient
+       id="lens-tint"
+       cx="260"
+       cy="180"
+       r="112"
+       fx="260"
+       fy="180"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#ffffff"
+         stop-opacity="0.5"
+         id="stop11" />
+      <stop
+         offset="50%"
+         stop-color="#e8f4fd"
+         stop-opacity="0.25"
+         id="stop12" />
+      <stop
+         offset="100%"
+         stop-color="#afd4f9"
+         stop-opacity="0.5"
+         id="stop13" />
+    </radialGradient>
+    <!-- Handle & Metal Connectors -->
+    <linearGradient
+       id="metal-grad"
+       x1="-15.491933"
+       y1="73.586684"
+       x2="15.491933"
+       y2="73.586684"
+       gradientTransform="scale(0.96824584,1.0327956)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#cbd5e0"
+         id="stop14" />
+      <stop
+         offset="50%"
+         stop-color="#f7fafc"
+         id="stop15" />
+      <stop
+         offset="100%"
+         stop-color="#718096"
+         id="stop16" />
+    </linearGradient>
+    <linearGradient
+       id="handle-grad"
+       x1="-35.404802"
+       y1="64.31331"
+       x2="35.404802"
+       y2="64.31331"
+       gradientTransform="scale(0.64962939,1.5393392)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#ff8800"
+         id="stop17" />
+      <stop
+         offset="35%"
+         stop-color="#ff4400"
+         id="stop18" />
+      <stop
+         offset="100%"
+         stop-color="#990000"
+         id="stop19" />
+    </linearGradient>
+    <!-- Wordmark text color for VISTA -->
+    <linearGradient
+       id="gold-grad-vista"
+       x1="0%"
+       y1="0%"
+       x2="0%"
+       y2="100%">
+      <stop
+         offset="0%"
+         stop-color="#ffea3a"
+         id="stop20" />
+      <stop
+         offset="40%"
+         stop-color="#ff9d00"
+         id="stop21" />
+      <stop
+         offset="100%"
+         stop-color="#e64a00"
+         id="stop22" />
+    </linearGradient>
+  </defs>
+  <!-- Outer Rounded Square Background -->
+  <rect
+     x="16"
+     y="16"
+     width="480"
+     height="480"
+     rx="85"
+     fill="url(#bg-grad)"
+     stroke="#0e0638"
+     stroke-width="14"
+     id="rect22"
+     style="display:inline" />
+  <g
+     transform="rotate(-12.5,124.63146,140.62202)"
+     id="g23"
+     style="display:inline">
+    <path
+       d="m 104,104 a 14,14 0 0 1 14,-14 h 182 l 28,28 v 228 a 14,14 0 0 1 -14,14 H 118 a 14,14 0 0 1 -14,-14 z"
+       fill="url(#doc-back-grad)"
+       stroke="#130a4d"
+       stroke-width="8"
+       stroke-linejoin="round"
+       id="path22"
+       style="fill:url(#doc-back-grad)" />
+    <line
+       x1="96"
+       y1="120"
+       x2="96"
+       y2="340"
+       stroke="#130a4d"
+       stroke-width="8"
+       stroke-linecap="round"
+       id="line22" />
+    <line
+       x1="100"
+       y1="110"
+       x2="100"
+       y2="350"
+       stroke="#130a4d"
+       stroke-width="8"
+       stroke-linecap="round"
+       id="line23" />
+  </g>
+  <g
+     transform="rotate(-10.5,113.1092,123.70791)"
+     id="g45">
+    <!-- Main White Paper -->
+    <path
+       d="m 110,94 a 14,14 0 0 1 14,-14 h 182 l 28,28 v 238 a 14,14 0 0 1 -14,14 H 124 a 14,14 0 0 1 -14,-14 z"
+       fill="#ffffff"
+       stroke="#130a4d"
+       stroke-width="8"
+       stroke-linejoin="round"
+       id="path23" />
+    <!-- Paper Folded Corner back layer -->
+    <path
+       d="m 306,80 28,28 H 316 A 12,12 0 0 1 306,96 Z"
+       fill="#e2e8f0"
+       stroke="#130a4d"
+       stroke-width="8"
+       stroke-linejoin="round"
+       id="path24" />
+    <!-- Markdown Icon Badge '[M↓]' -->
+    <rect
+       x="126"
+       y="102"
+       width="62"
+       height="42"
+       rx="10"
+       fill="none"
+       stroke="#130a4d"
+       stroke-width="8"
+       id="rect24" />
+    <!-- 'M' -->
+    <path
+       d="m 136,134 v -24 h 8 l 4.5,13 4.5,-13 h 8 v 24 h -7 v -15 l -5.5,11 -5.5,-11 v 15 z"
+       fill="#130a4d"
+       id="path25" />
+    <!-- Down Arrow '↓' -->
+    <path
+       d="m 171,110 h 6 v 12 h 5 l -8,12 -8,-12 h 5 z"
+       fill="#130a4d"
+       id="path26" />
+    <!-- Mock Markdown Text Elements -->
+    <text
+       x="126"
+       y="162"
+       font-family="'Courier New', Courier, monospace, sans-serif"
+       font-weight="900"
+       font-size="14px"
+       fill="#130a4d"
+       letter-spacing="-0.5px"
+       id="text26">markdown</text>
+    <text
+       x="126"
+       y="177"
+       font-family="'Courier New', monospace"
+       font-weight="900"
+       font-size="14px"
+       fill="#130a4d"
+       id="text27">text and</text>
+    <text
+       x="126"
+       y="192"
+       font-family="'Courier New', monospace"
+       font-weight="900"
+       font-size="14px"
+       fill="#130a4d"
+       id="text28">viewing</text>
+    <text
+       x="126"
+       y="207"
+       font-family="'Courier New', monospace"
+       font-weight="900"
+       font-size="14px"
+       fill="#130a4d"
+       id="text29">application</text>
+    <text
+       x="126"
+       y="222"
+       font-family="'Courier New', monospace"
+       font-weight="900"
+       font-size="14px"
+       fill="#130a4d"
+       id="text30">tools</text>
+    <text
+       x="126"
+       y="235"
+       font-family="'Courier New', monospace"
+       font-weight="900"
+       font-size="14px"
+       fill="#130a4d"
+       id="text31">•••</text>
+    <text
+       x="126"
+       y="260"
+       font-family="'Courier New', monospace"
+       font-weight="900"
+       font-size="14px"
+       fill="#130a4d"
+       id="text32"># Head</text>
+    <text
+       x="126"
+       y="276"
+       font-family="'Courier New', monospace"
+       font-weight="900"
+       font-size="14px"
+       fill="#130a4d"
+       id="text33"
+       style="display:inline">paperback</text>
+    <text
+       x="126"
+       y="291"
+       font-family="'Courier New', monospace"
+       font-weight="900"
+       font-size="14px"
+       fill="#130a4d"
+       id="text34"
+       style="display:inline">checkbox</text>
+    <text
+       x="126"
+       y="306"
+       font-family="'Courier New', monospace"
+       font-weight="900"
+       font-size="14px"
+       fill="#130a4d"
+       id="text35"
+       style="display:inline">checkbox l</text>
+    <text
+       x="126"
+       y="321"
+       font-family="'Courier New', monospace"
+       font-weight="900"
+       font-size="14px"
+       fill="#130a4d"
+       id="text36"
+       style="display:inline">and #list.</text>
+    <!-- Simulated Magnified Contents under lens (aligned to rotate with paper) -->
+    <!-- Orange 'Headers' title -->
+    <text
+       x="214"
+       y="160"
+       font-family="system-ui, '-apple-system', 'Segoe UI', sans-serif"
+       font-weight="900"
+       font-size="28px"
+       fill="#e64a00"
+       letter-spacing="-0.5px"
+       id="text37"
+       style="display:inline">Headers</text>
+    <!-- Magnified text row markers (heavy blue bars) -->
+    <rect
+       x="214"
+       y="174"
+       width="94"
+       height="6"
+       rx="3"
+       fill="#130a4d"
+       id="rect37" />
+    <rect
+       x="214"
+       y="186"
+       width="86"
+       height="6"
+       rx="3"
+       fill="#130a4d"
+       id="rect38" />
+    <rect
+       x="214"
+       y="198"
+       width="54"
+       height="6"
+       rx="3"
+       fill="#130a4d"
+       id="rect39" />
+    <!-- Checked / Unchecked list items -->
+    <!-- Item 1 - Checked -->
+    <rect
+       x="215"
+       y="215"
+       width="13"
+       height="13"
+       rx="3"
+       fill="#ffffff"
+       stroke="#130a4d"
+       stroke-width="2.5"
+       id="rect40" />
+    <path
+       d="m 217,221 3,4 5,-8"
+       stroke="#00c853"
+       stroke-width="3"
+       fill="none"
+       stroke-linecap="round"
+       stroke-linejoin="round"
+       id="path40" />
+    <rect
+       x="234"
+       y="219"
+       width="75"
+       height="5"
+       rx="2"
+       fill="#1a1c23"
+       id="rect41" />
+    <!-- Item 2 - Empty Checkbox -->
+    <rect
+       x="215"
+       y="233"
+       width="13"
+       height="13"
+       rx="3"
+       fill="#ffffff"
+       stroke="#130a4d"
+       stroke-width="2.5"
+       id="rect42" />
+    <rect
+       x="234"
+       y="237"
+       width="82"
+       height="5"
+       rx="2"
+       fill="#1a1c23"
+       id="rect43" />
+    <!-- Item 3 - Empty Checkbox -->
+    <rect
+       x="215"
+       y="251"
+       width="13"
+       height="13"
+       rx="3"
+       fill="#ffffff"
+       stroke="#130a4d"
+       stroke-width="2.5"
+       id="rect44" />
+    <rect
+       x="234"
+       y="255"
+       width="60"
+       height="5"
+       rx="2"
+       fill="#1a1c23"
+       id="rect45" />
+  </g>
+  <g
+     id="g51"
+     transform="translate(13.600686,-24.56898)"
+     style="display:inline">
+    <!-- Transparent Tint Magnified lens backing shadow/optical distortion -->
+    <circle
+       cx="292"
+       cy="212"
+       r="80"
+       fill="url(#lens-tint)"
+       id="circle45"
+       style="fill:url(#lens-tint)" />
+    <!-- Metal connector & Orange Handle (Rotated at 42 degrees) -->
+    <g
+       transform="rotate(42,-130.13944,486.343)"
+       id="g48">
+      <!-- Silver connector neck -->
+      <rect
+         x="-11"
+         y="80"
+         width="22"
+         height="24"
+         rx="2"
+         fill="url(#metal-grad)"
+         stroke="#130a4d"
+         stroke-width="8"
+         stroke-linejoin="round"
+         id="rect46"
+         style="fill:url(#metal-grad)" />
+      <!-- Gold neck band accent -->
+      <rect
+         x="-14"
+         y="99"
+         width="28"
+         height="6"
+         fill="#ffd54f"
+         stroke="#130a4d"
+         stroke-width="4"
+         rx="2"
+         id="rect47" />
+      <!-- Orange grip handle -->
+      <path
+         d="m -15,103 h 30 c 0,0 4,11 4,17 v 66 c 0,12 -9,18 -19,18 -10,0 -19,-6 -19,-18 v -66 c 0,-6 4,-17 4,-17 z"
+         fill="url(#handle-grad)"
+         stroke="#130a4d"
+         stroke-width="8"
+         stroke-linejoin="round"
+         id="path47"
+         style="fill:url(#handle-grad)" />
+      <!-- Handle Highlight glare (internal glint) -->
+      <path
+         d="m 6,108 c 5,0 7,10 7,16 v 60 c 0,6 -3,11 -7,11 0,0 3,-7 3,-13 V 126 C 9,118 6,108 6,108 Z"
+         fill="#ffffff"
+         opacity="0.45"
+         id="path48" />
     </g>
-    <g id="Logo-and-Text" serif:id="Logo and Text" transform="matrix(1,0,0,1,-10,-10)">
-        <clipPath id="_clip1">
-            <path d="M997.5,118.577L997.5,905.423C997.5,956.242 956.242,997.5 905.423,997.5L118.577,997.5C67.758,997.5 26.5,956.242 26.5,905.423L26.5,118.577C26.5,67.758 67.758,26.5 118.577,26.5L905.423,26.5C956.242,26.5 997.5,67.758 997.5,118.577Z"/>
-        </clipPath>
-        <g clip-path="url(#_clip1)">
-            <g id="BG--White-" serif:id="BG (White)">
-                <rect x="-16" y="-16" width="1056" height="1056" style="fill:white;"/>
-            </g>
-            <g id="BG--Gradient-Blue-" serif:id="BG (Gradient Blue)">
-                <rect x="-16" y="-16" width="1056" height="1056" style="fill:url(#_Radial2);"/>
-            </g>
-            <g id="Markdown-Logo" serif:id="Markdown Logo" transform="matrix(0.48,0,0,0.48,512,258)">
-                <g transform="matrix(1,0,0,1,-1066.67,-1066.67)">
-                    <g transform="matrix(133.333,0,0,133.333,0,0)">
-                        <path d="M6.345,5L8.445,5L8.445,11.533L6.993,11.533L7.048,6.223L5.274,11.533L4.072,11.533L2.267,6.223C2.307,6.867 2.327,11.533 2.327,11.533L1,11.533L1,5L3.156,5C3.156,5 4.684,9.493 4.733,9.807L6.345,5ZM13.055,8.617L13.055,4.967L11.11,4.967L11.11,8.617L9.166,8.617L12.083,11.533L15,8.617L13.055,8.617Z" style="fill-rule:nonzero;"/>
-                    </g>
-                </g>
-            </g>
-            <g transform="matrix(1,0,0,1,0,-64)">
-                <g id="Reader">
-                    <g>
-                        <g transform="matrix(1,0,0,0.966979,1.1191e-13,31.7003)">
-                            <rect x="0" y="662.165" width="1024" height="297.835"/>
-                        </g>
-                        <g transform="matrix(3.11779,0,0,3.11779,-14.4185,-2143.53)">
-                            <g transform="matrix(80,0,0,80,24.1363,974.952)">
-                                <path d="M0.02,-0L0.02,-0.041C0.042,-0.045 0.058,-0.05 0.069,-0.055C0.08,-0.061 0.085,-0.066 0.085,-0.07L0.085,-0.56L0.02,-0.551L0.013,-0.601C0.048,-0.608 0.088,-0.615 0.131,-0.621C0.174,-0.627 0.22,-0.63 0.268,-0.63C0.314,-0.63 0.354,-0.626 0.386,-0.619C0.418,-0.611 0.444,-0.601 0.464,-0.587C0.484,-0.574 0.499,-0.558 0.508,-0.54C0.517,-0.522 0.521,-0.503 0.521,-0.482C0.521,-0.46 0.518,-0.439 0.511,-0.421C0.504,-0.402 0.495,-0.385 0.483,-0.37C0.471,-0.355 0.457,-0.341 0.44,-0.33C0.423,-0.318 0.405,-0.309 0.385,-0.302L0.541,-0.097C0.546,-0.09 0.551,-0.085 0.555,-0.081C0.56,-0.076 0.565,-0.073 0.57,-0.071C0.575,-0.069 0.582,-0.068 0.589,-0.067C0.596,-0.067 0.606,-0.067 0.617,-0.068L0.625,-0.028C0.614,-0.024 0.601,-0.02 0.587,-0.016C0.572,-0.012 0.558,-0.009 0.544,-0.005C0.53,-0.002 0.516,0.001 0.504,0.003C0.492,0.006 0.482,0.007 0.476,0.007C0.467,0.007 0.457,0.004 0.448,-0.001C0.44,-0.006 0.433,-0.013 0.428,-0.02L0.291,-0.284C0.288,-0.283 0.285,-0.283 0.282,-0.283L0.274,-0.283C0.265,-0.283 0.257,-0.284 0.249,-0.284C0.24,-0.285 0.231,-0.287 0.222,-0.289L0.222,-0.07C0.222,-0.066 0.227,-0.062 0.237,-0.056C0.247,-0.05 0.264,-0.045 0.288,-0.041L0.288,-0L0.02,-0ZM0.245,-0.574C0.242,-0.574 0.226,-0.574 0.222,-0.574L0.222,-0.347C0.231,-0.346 0.239,-0.345 0.245,-0.344C0.252,-0.344 0.258,-0.344 0.266,-0.344C0.286,-0.344 0.304,-0.347 0.319,-0.352C0.333,-0.358 0.345,-0.366 0.355,-0.377C0.364,-0.387 0.371,-0.4 0.375,-0.415C0.38,-0.43 0.382,-0.448 0.382,-0.467C0.382,-0.481 0.38,-0.494 0.376,-0.507C0.372,-0.52 0.365,-0.532 0.355,-0.542C0.345,-0.552 0.331,-0.56 0.313,-0.565C0.295,-0.571 0.273,-0.574 0.245,-0.574Z" style="fill:white;fill-rule:nonzero;"/>
-                            </g>
-                            <g transform="matrix(80,0,0,80,73.7066,974.952)">
-                                <path d="M0.515,-0.158C0.513,-0.144 0.512,-0.129 0.51,-0.113C0.509,-0.096 0.507,-0.08 0.505,-0.065C0.503,-0.05 0.501,-0.037 0.499,-0.025C0.497,-0.013 0.496,-0.005 0.495,-0L0.02,-0L0.02,-0.041C0.042,-0.045 0.058,-0.05 0.069,-0.055C0.08,-0.061 0.085,-0.066 0.085,-0.07L0.085,-0.544C0.085,-0.548 0.08,-0.553 0.07,-0.559C0.06,-0.565 0.043,-0.57 0.02,-0.575L0.02,-0.615L0.462,-0.615L0.483,-0.598C0.482,-0.59 0.481,-0.579 0.48,-0.565C0.479,-0.551 0.477,-0.537 0.475,-0.523C0.473,-0.509 0.471,-0.495 0.469,-0.482C0.467,-0.47 0.465,-0.46 0.463,-0.454L0.421,-0.454C0.42,-0.484 0.416,-0.508 0.409,-0.526C0.403,-0.543 0.393,-0.552 0.381,-0.552L0.222,-0.552L0.222,-0.359L0.415,-0.359L0.433,-0.34C0.43,-0.336 0.427,-0.33 0.423,-0.324C0.419,-0.318 0.415,-0.312 0.411,-0.305C0.407,-0.299 0.403,-0.293 0.399,-0.288C0.395,-0.283 0.391,-0.279 0.388,-0.276C0.383,-0.281 0.378,-0.285 0.372,-0.289C0.366,-0.292 0.36,-0.295 0.352,-0.297C0.345,-0.299 0.336,-0.301 0.326,-0.302C0.316,-0.303 0.305,-0.303 0.291,-0.303L0.222,-0.303L0.222,-0.095C0.222,-0.09 0.223,-0.086 0.226,-0.082C0.228,-0.078 0.233,-0.075 0.24,-0.072C0.247,-0.069 0.257,-0.067 0.27,-0.066C0.283,-0.064 0.3,-0.063 0.322,-0.063L0.365,-0.063C0.38,-0.063 0.393,-0.066 0.404,-0.07C0.414,-0.074 0.424,-0.08 0.432,-0.089C0.44,-0.098 0.447,-0.109 0.454,-0.123C0.461,-0.136 0.467,-0.153 0.474,-0.172L0.515,-0.158Z" style="fill:white;fill-rule:nonzero;"/>
-                            </g>
-                            <g transform="matrix(80,0,0,80,116.519,974.952)">
-                                <path d="M0.363,-0.271L0.284,-0.49L0.214,-0.271L0.363,-0.271ZM0.193,-0.208L0.149,-0.074C0.146,-0.064 0.149,-0.056 0.16,-0.052C0.171,-0.047 0.19,-0.043 0.217,-0.041L0.217,-0L0,-0L0,-0.041C0.022,-0.044 0.039,-0.049 0.05,-0.053C0.062,-0.057 0.069,-0.064 0.072,-0.074L0.239,-0.584C0.248,-0.592 0.258,-0.599 0.268,-0.605C0.279,-0.611 0.29,-0.616 0.301,-0.621C0.312,-0.626 0.323,-0.63 0.334,-0.634C0.345,-0.637 0.355,-0.64 0.365,-0.643L0.57,-0.074C0.571,-0.069 0.573,-0.065 0.576,-0.062C0.578,-0.058 0.582,-0.055 0.586,-0.052C0.591,-0.05 0.596,-0.047 0.603,-0.045C0.61,-0.043 0.618,-0.042 0.629,-0.041L0.629,-0L0.374,-0L0.374,-0.041C0.399,-0.042 0.416,-0.045 0.425,-0.05C0.434,-0.055 0.437,-0.063 0.433,-0.074L0.385,-0.208L0.193,-0.208Z" style="fill:white;fill-rule:nonzero;"/>
-                            </g>
-                            <g transform="matrix(80,0,0,80,167.652,974.952)">
-                                <path d="M0.612,-0.33C0.612,-0.289 0.608,-0.253 0.599,-0.221C0.591,-0.189 0.58,-0.161 0.565,-0.136C0.551,-0.111 0.534,-0.091 0.514,-0.073C0.495,-0.056 0.474,-0.042 0.452,-0.031C0.43,-0.021 0.406,-0.013 0.383,-0.008C0.359,-0.003 0.335,-0 0.312,-0L0.02,-0L0.02,-0.041C0.042,-0.045 0.058,-0.05 0.069,-0.055C0.08,-0.061 0.085,-0.066 0.085,-0.07L0.085,-0.56L0.02,-0.551L0.013,-0.601C0.029,-0.604 0.049,-0.608 0.072,-0.612C0.095,-0.615 0.12,-0.619 0.145,-0.621C0.17,-0.624 0.195,-0.626 0.221,-0.628C0.247,-0.629 0.27,-0.63 0.292,-0.63C0.343,-0.63 0.389,-0.623 0.429,-0.61C0.468,-0.596 0.502,-0.576 0.529,-0.551C0.556,-0.525 0.577,-0.494 0.591,-0.457C0.605,-0.419 0.612,-0.377 0.612,-0.33ZM0.255,-0.574C0.25,-0.574 0.245,-0.574 0.239,-0.574C0.233,-0.574 0.228,-0.574 0.222,-0.573L0.222,-0.093C0.222,-0.087 0.222,-0.082 0.223,-0.078C0.224,-0.073 0.226,-0.069 0.231,-0.066C0.235,-0.063 0.242,-0.06 0.251,-0.058C0.261,-0.057 0.274,-0.056 0.292,-0.056C0.309,-0.056 0.328,-0.06 0.348,-0.07C0.369,-0.079 0.388,-0.094 0.405,-0.115C0.422,-0.135 0.436,-0.162 0.448,-0.194C0.46,-0.226 0.465,-0.265 0.465,-0.311C0.465,-0.398 0.448,-0.464 0.412,-0.508C0.377,-0.552 0.324,-0.574 0.255,-0.574Z" style="fill:white;fill-rule:nonzero;"/>
-                            </g>
-                            <g transform="matrix(80,0,0,80,219.761,974.952)">
-                                <path d="M0.515,-0.158C0.513,-0.144 0.512,-0.129 0.51,-0.113C0.509,-0.096 0.507,-0.08 0.505,-0.065C0.503,-0.05 0.501,-0.037 0.499,-0.025C0.497,-0.013 0.496,-0.005 0.495,-0L0.02,-0L0.02,-0.041C0.042,-0.045 0.058,-0.05 0.069,-0.055C0.08,-0.061 0.085,-0.066 0.085,-0.07L0.085,-0.544C0.085,-0.548 0.08,-0.553 0.07,-0.559C0.06,-0.565 0.043,-0.57 0.02,-0.575L0.02,-0.615L0.462,-0.615L0.483,-0.598C0.482,-0.59 0.481,-0.579 0.48,-0.565C0.479,-0.551 0.477,-0.537 0.475,-0.523C0.473,-0.509 0.471,-0.495 0.469,-0.482C0.467,-0.47 0.465,-0.46 0.463,-0.454L0.421,-0.454C0.42,-0.484 0.416,-0.508 0.409,-0.526C0.403,-0.543 0.393,-0.552 0.381,-0.552L0.222,-0.552L0.222,-0.359L0.415,-0.359L0.433,-0.34C0.43,-0.336 0.427,-0.33 0.423,-0.324C0.419,-0.318 0.415,-0.312 0.411,-0.305C0.407,-0.299 0.403,-0.293 0.399,-0.288C0.395,-0.283 0.391,-0.279 0.388,-0.276C0.383,-0.281 0.378,-0.285 0.372,-0.289C0.366,-0.292 0.36,-0.295 0.352,-0.297C0.345,-0.299 0.336,-0.301 0.326,-0.302C0.316,-0.303 0.305,-0.303 0.291,-0.303L0.222,-0.303L0.222,-0.095C0.222,-0.09 0.223,-0.086 0.226,-0.082C0.228,-0.078 0.233,-0.075 0.24,-0.072C0.247,-0.069 0.257,-0.067 0.27,-0.066C0.283,-0.064 0.3,-0.063 0.322,-0.063L0.365,-0.063C0.38,-0.063 0.393,-0.066 0.404,-0.07C0.414,-0.074 0.424,-0.08 0.432,-0.089C0.44,-0.098 0.447,-0.109 0.454,-0.123C0.461,-0.136 0.467,-0.153 0.474,-0.172L0.515,-0.158Z" style="fill:white;fill-rule:nonzero;"/>
-                            </g>
-                            <g transform="matrix(80,0,0,80,262.574,974.952)">
-                                <path d="M0.02,-0L0.02,-0.041C0.042,-0.045 0.058,-0.05 0.069,-0.055C0.08,-0.061 0.085,-0.066 0.085,-0.07L0.085,-0.56L0.02,-0.551L0.013,-0.601C0.048,-0.608 0.088,-0.615 0.131,-0.621C0.174,-0.627 0.22,-0.63 0.268,-0.63C0.314,-0.63 0.354,-0.626 0.386,-0.619C0.418,-0.611 0.444,-0.601 0.464,-0.587C0.484,-0.574 0.499,-0.558 0.508,-0.54C0.517,-0.522 0.521,-0.503 0.521,-0.482C0.521,-0.46 0.518,-0.439 0.511,-0.421C0.504,-0.402 0.495,-0.385 0.483,-0.37C0.471,-0.355 0.457,-0.341 0.44,-0.33C0.423,-0.318 0.405,-0.309 0.385,-0.302L0.541,-0.097C0.546,-0.09 0.551,-0.085 0.555,-0.081C0.56,-0.076 0.565,-0.073 0.57,-0.071C0.575,-0.069 0.582,-0.068 0.589,-0.067C0.596,-0.067 0.606,-0.067 0.617,-0.068L0.625,-0.028C0.614,-0.024 0.601,-0.02 0.587,-0.016C0.572,-0.012 0.558,-0.009 0.544,-0.005C0.53,-0.002 0.516,0.001 0.504,0.003C0.492,0.006 0.482,0.007 0.476,0.007C0.467,0.007 0.457,0.004 0.448,-0.001C0.44,-0.006 0.433,-0.013 0.428,-0.02L0.291,-0.284C0.288,-0.283 0.285,-0.283 0.282,-0.283L0.274,-0.283C0.265,-0.283 0.257,-0.284 0.249,-0.284C0.24,-0.285 0.231,-0.287 0.222,-0.289L0.222,-0.07C0.222,-0.066 0.227,-0.062 0.237,-0.056C0.247,-0.05 0.264,-0.045 0.288,-0.041L0.288,-0L0.02,-0ZM0.245,-0.574C0.242,-0.574 0.226,-0.574 0.222,-0.574L0.222,-0.347C0.231,-0.346 0.239,-0.345 0.245,-0.344C0.252,-0.344 0.258,-0.344 0.266,-0.344C0.286,-0.344 0.304,-0.347 0.319,-0.352C0.333,-0.358 0.345,-0.366 0.355,-0.377C0.364,-0.387 0.371,-0.4 0.375,-0.415C0.38,-0.43 0.382,-0.448 0.382,-0.467C0.382,-0.481 0.38,-0.494 0.376,-0.507C0.372,-0.52 0.365,-0.532 0.355,-0.542C0.345,-0.552 0.331,-0.56 0.313,-0.565C0.295,-0.571 0.273,-0.574 0.245,-0.574Z" style="fill:white;fill-rule:nonzero;"/>
-                            </g>
-                        </g>
-                    </g>
-                </g>
-            </g>
-        </g>
-    </g>
-    <g transform="matrix(11.3661,0,0,19.5069,14,14)">
-        <g id="Border">
-            <path d="M85.87,4.823L85.87,45.21C85.87,47.872 82.161,50.033 77.592,50.033L8.277,50.033C3.709,50.033 0,47.872 0,45.21L0,4.823C0,2.161 3.709,0 8.277,0L77.592,0C82.161,0 85.87,2.161 85.87,4.823Z" style="fill:none;stroke:black;stroke-width:1.34px;"/>
-        </g>
-    </g>
-    <defs>
-        <radialGradient id="_Radial2" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="matrix(722.256,723.164,-723.164,722.256,10,10)"><stop offset="0" style="stop-color:white;stop-opacity:1"/><stop offset="0.53" style="stop-color:rgb(198,212,255);stop-opacity:1"/><stop offset="1" style="stop-color:rgb(0,64,255);stop-opacity:1"/></radialGradient>
-    </defs>
+    <!-- Circular Magnifier golden metal Rim -->
+    <circle
+       cx="292"
+       cy="212"
+       r="86"
+       fill="none"
+       stroke="url(#gold-rim)"
+       stroke-width="12"
+       id="circle48"
+       style="stroke:url(#gold-rim)" />
+    <!-- Outer rim dark overlay line -->
+    <circle
+       cx="292"
+       cy="212"
+       r="92"
+       fill="none"
+       stroke="#130a4d"
+       stroke-width="8"
+       id="circle49" />
+    <!-- Inner rim dark overlay line -->
+    <circle
+       cx="292"
+       cy="212"
+       r="80"
+       fill="none"
+       stroke="#130a4d"
+       stroke-width="6"
+       id="circle50" />
+    <!-- Curved glass glint highlights (top left white transparent glares) -->
+    <path
+       d="m 226,182 a 73,73 0 0 1 90,-48 65,65 0 0 0 -80,61 z"
+       fill="#ffffff"
+       opacity="0.55"
+       id="path50" />
+    <circle
+       cx="340"
+       cy="245"
+       r="5"
+       fill="#ffffff"
+       opacity="0.4"
+       id="circle51" />
+  </g>
+  <polygon
+     points="367,129 373,127 367,125 364,120 361,125 355,127 361,129 364,134 "
+     fill="#ffd42c"
+     stroke="#130a4d"
+     stroke-width="2"
+     id="polygon51"
+     transform="translate(13.600686,-24.56898)" />
+  <polygon
+     points="384,146 389,144 384,142 383,138 382,142 377,144 382,146 383,150 "
+     fill="#ffea79"
+     stroke="#130a4d"
+     stroke-width="2"
+     id="polygon52"
+     transform="translate(13.600686,-24.56898)" />
+  <line
+     x1="407.60068"
+     y1="99.431023"
+     x2="412.60068"
+     y2="106.43102"
+     stroke="#ffd42c"
+     stroke-width="5"
+     stroke-linecap="round"
+     id="line52" />
+  <!-- Back Stacked Document/Paper Group -->
+  <!-- Primary Front Document/Paper Group -->
+  <!-- Magnifying Glass Group -->
+  <!-- Sparks & Shines (Top right) -->
+  <!-- Bottom Brand Text Title ("TEXTO VISTA") -->
+  <!-- Utilizes precise coordinate transformation layers to bypass standard rendering bugs and match the italic image natively -->
+  <g
+     transform="matrix(1.4679636,0,-0.32543973,1.2565603,248.8559,437.91943)"
+     id="g54">
+    <!-- Extra thick dark border shadow to guarantee massive text pop -->
+    <text
+       x="0"
+       y="0"
+       text-anchor="middle"
+       font-family="Impact, Montserrat, 'Arial Black', sans-serif"
+       font-size="58px"
+       font-weight="900"
+       fill="#0e0638"
+       stroke="#0e0638"
+       stroke-width="16"
+       stroke-linejoin="round"
+       stroke-linecap="round"
+       id="text52"
+       style="display:inline">TEXTO VISTA</text>
+    <!-- Heavy structural outline backplate -->
+    <text
+       x="0"
+       y="0"
+       text-anchor="middle"
+       font-family="Impact, Montserrat, 'Arial Black', sans-serif"
+       font-size="58px"
+       font-weight="900"
+       fill="#0e0638"
+       stroke="#0e0638"
+       stroke-width="8"
+       stroke-linejoin="round"
+       stroke-linecap="round"
+       id="text53"
+       style="display:inline">TEXTO VISTA</text>
+    <!-- Sharp foreground layer with white "TEXTO" and rich gold-orange "VISTA" gradient -->
+    <text
+       x="0"
+       y="0"
+       text-anchor="middle"
+       font-family="Impact, Montserrat, 'Arial Black', sans-serif"
+       font-size="58px"
+       font-weight="900"
+       fill="#ffffff"
+       id="text54"
+       style="display:inline">TEXTO <tspan
+   fill="url(#gold-grad-vista)"
+   id="tspan53">VISTA</tspan></text>
+  </g>
+  <metadata
+     id="metadata54">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <cc:license
+           rdf:resource="http://creativecommons.org/licenses/by-nc-nd/4.0/" />
+        <dc:title>TextoVista Logo</dc:title>
+        <dc:date>2026-10-20</dc:date>
+        <dc:creator>
+          <cc:Agent>
+            <dc:title>ZMT Creative LLC</dc:title>
+          </cc:Agent>
+        </dc:creator>
+        <dc:rights>
+          <cc:Agent>
+            <dc:title>All Rights Reserved</dc:title>
+          </cc:Agent>
+        </dc:rights>
+      </cc:Work>
+      <cc:License
+         rdf:about="http://creativecommons.org/licenses/by-nc-nd/4.0/">
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#Reproduction" />
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#Distribution" />
+        <cc:requires
+           rdf:resource="http://creativecommons.org/ns#Notice" />
+        <cc:requires
+           rdf:resource="http://creativecommons.org/ns#Attribution" />
+        <cc:prohibits
+           rdf:resource="http://creativecommons.org/ns#CommercialUse" />
+      </cc:License>
+    </rdf:RDF>
+  </metadata>
 </svg>

@@ -17,7 +17,7 @@ IF [%~1] NEQ [] (
 
 CALL :SET_OUTPUT_FILENAME "!MD_MASTER_SVG!"
 
-magick -verbose -background none "!SRCDIR!\!MD_MASTER_SVG!" -resize "1024x1024" "!SRCDIR!\!MD_ICON_FILENAME!.png"
+magick -verbose -background none "!SRCDIR!\SVG\!MD_MASTER_SVG!" -resize "1024x1024" "!SRCDIR!\!MD_ICON_FILENAME!.png"
 
 ECHO.
 ECHO NOTE:
