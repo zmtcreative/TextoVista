@@ -35,9 +35,13 @@ var aboutTemplate string
 var licenseShort string
 
 var (
-	appEventsEmit   = wailsruntime.EventsEmit
-	appQuit         = wailsruntime.Quit
-	appLoadMarkdown = func(processor *app.DocumentProcessor, filePath string) error {
+	appEventsEmit        = wailsruntime.EventsEmit
+	appQuit              = wailsruntime.Quit
+	appWindowIsMaximised = wailsruntime.WindowIsMaximised
+	appWindowGetSize     = wailsruntime.WindowGetSize
+	appWindowGetPosition = wailsruntime.WindowGetPosition
+	appWindowSetPosition = wailsruntime.WindowSetPosition
+	appLoadMarkdown      = func(processor *app.DocumentProcessor, filePath string) error {
 		if processor == nil {
 			return fmt.Errorf("document processor not initialized")
 		}
@@ -101,11 +105,11 @@ func (w *fsnotifyDocumentWatcher) Errors() <-chan error {
 type App struct {
 	ctx                context.Context
 	currentFile        string
-	appProgName        string            // Store the application name without extension
-	appProgNameWithExt string            // Store the application name with extension
-	showHelp           bool              // Flag to indicate if help should be shown
-	cmdlineOptions     string            // Store command line options here
-	versionInfo        string            // Store version information
+	appProgName        string // Store the application name without extension
+	appProgNameWithExt string // Store the application name with extension
+	showHelp           bool   // Flag to indicate if help should be shown
+	cmdlineOptions     string // Store command line options here
+	versionInfo        string // Store version information
 
 	// Managers
 	themeManager      *app.ThemeManager
@@ -149,15 +153,15 @@ func NewApp(cliArgs *cli.CliArgs) *App {
 	}
 
 	return &App{
-		currentFile:        stringFromPtr(cliArgs.InitialFile, ""),             // Default to empty, can be set via CLI flag
+		currentFile:        stringFromPtr(cliArgs.InitialFile, ""),            // Default to empty, can be set via CLI flag
 		appProgName:        stringFromPtr(cliArgs.AppProgName, "texto-vista"), // Store the application name without extension
-		appProgNameWithExt: appProgNameWithExt,                              // Store the application name with extension
-		showHelp:           boolFromPtr(cliArgs.ShowHelp, false),            // Default to false, can be set via CLI flag
-		versionInfo:        setAboutString,                                  // Set version info using the application name with extension
-		cmdlineOptions:     stringFromPtr(cliArgs.CmdlineOptions, ""),       // Store the command line options for help display
-		configManager:      configManager,                                   // Store the config manager
-		fontManager:        app.NewFontManager(configManager),               // Initialize font manager with config manager
-		binaryDetector:     app.NewBinaryDetector(),                         // Initialize binary detector
+		appProgNameWithExt: appProgNameWithExt,                                // Store the application name with extension
+		showHelp:           boolFromPtr(cliArgs.ShowHelp, false),              // Default to false, can be set via CLI flag
+		versionInfo:        setAboutString,                                    // Set version info using the application name with extension
+		cmdlineOptions:     stringFromPtr(cliArgs.CmdlineOptions, ""),         // Store the command line options for help display
+		configManager:      configManager,                                     // Store the config manager
+		fontManager:        app.NewFontManager(configManager),                 // Initialize font manager with config manager
+		binaryDetector:     app.NewBinaryDetector(),                           // Initialize binary detector
 	}
 }
 
@@ -210,10 +214,22 @@ func setAbout(appProgNameWithExt string) (string, error) {
 	return versionText.String(), nil
 }
 
+func hasFrontend(ctx context.Context) bool {
+	return ctx != nil && ctx.Value("frontend") != nil
+}
+
 // startup is called when the app starts. The context is created
 // after the app is created, but before the event loop starts.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+
+	// Defensive check: ensure window titlebar is not positioned off-screen
+	if hasFrontend(ctx) && !appWindowIsMaximised(ctx) {
+		x, y := appWindowGetPosition(ctx)
+		if y < 0 {
+			appWindowSetPosition(ctx, x, 0)
+		}
+	}
 
 	// Initialize managers
 	a.themeManager = app.NewThemeManager(ctx)
@@ -266,6 +282,33 @@ func (a *App) domReady(ctx context.Context) {
 	if a.showHelp {
 		appEventsEmit(a.ctx, "show-help", "Command-Line Options", a.cmdlineOptions)
 	}
+}
+
+// beforeClose is called when the application window is about to close.
+// It saves the current window dimensions and maximized state.
+func (a *App) beforeClose(ctx context.Context) bool {
+	if a.configManager != nil && hasFrontend(ctx) {
+		isMaximized := appWindowIsMaximised(ctx)
+		w, h := appWindowGetSize(ctx)
+
+		currentState := a.configManager.GetWindowState()
+		newState := app.WindowStateConfig{
+			Maximized: isMaximized,
+		}
+		if isMaximized {
+			newState.Width = currentState.Width
+			newState.Height = currentState.Height
+		} else if w > 0 && h > 0 {
+			newState.Width = w
+			newState.Height = h
+		}
+
+		a.configManager.SetWindowState(newState)
+		if err := a.configManager.SaveConfig(); err != nil {
+			log.Printf("##> LOG: Error saving window state on close: %v", err)
+		}
+	}
+	return false
 }
 
 // shutdown is called when the app is about to exit.

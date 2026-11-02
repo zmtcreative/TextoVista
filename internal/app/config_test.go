@@ -649,3 +649,43 @@ func TestGetConfigDirFallsBackToCurrentDirectoryWhenHomeUnavailable(t *testing.T
 		t.Fatalf("getConfigDir() fallback directory check failed: %v", err)
 	}
 }
+
+func TestWindowStateConfigPersistence(t *testing.T) {
+	cm := newTestConfigManager(t)
+
+	// Default should be zero values
+	defaultState := cm.GetWindowState()
+	if defaultState.Width != 0 || defaultState.Height != 0 || defaultState.Maximized {
+		t.Fatalf("unexpected default window state: %#v", defaultState)
+	}
+
+	// Update window state
+	updatedState := WindowStateConfig{
+		Width:     1024,
+		Height:    768,
+		Maximized: true,
+	}
+	cm.SetWindowState(updatedState)
+
+	if got := cm.GetWindowState(); got != updatedState {
+		t.Fatalf("GetWindowState() = %#v, want %#v", got, updatedState)
+	}
+
+	// Save and reload
+	if err := cm.SaveConfig(); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	cmReloaded := NewConfigManager()
+	if got := cmReloaded.GetWindowState(); got != updatedState {
+		t.Fatalf("reloaded GetWindowState() = %#v, want %#v", got, updatedState)
+	}
+
+	// SetConfig should preserve window state if new config has zero window values
+	newCfg := *cmReloaded.GetConfig()
+	newCfg.Window = WindowStateConfig{} // reset to zero
+	cmReloaded.SetConfig(&newCfg)
+	if got := cmReloaded.GetWindowState(); got != updatedState {
+		t.Fatalf("SetConfig() did not preserve window state: got %#v, want %#v", got, updatedState)
+	}
+}

@@ -44,6 +44,22 @@ export namespace app {
 	        this.use_advanced_font_detection = source["use_advanced_font_detection"];
 	    }
 	}
+	export class WindowStateConfig {
+	    width: number;
+	    height: number;
+	    maximized: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new WindowStateConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.width = source["width"];
+	        this.height = source["height"];
+	        this.maximized = source["maximized"];
+	    }
+	}
 	export class MarkdownOptions {
 	    use_gfm: boolean;
 	    use_php_md_ext: boolean;
@@ -94,6 +110,7 @@ export namespace app {
 	    application: ApplicationOptions;
 	    markdown: MarkdownOptions;
 	    alert_callouts: AlertCalloutOptions;
+	    window: WindowStateConfig;
 	
 	    static createFrom(source: any = {}) {
 	        return new Config(source);
@@ -104,6 +121,7 @@ export namespace app {
 	        this.application = this.convertValues(source["application"], ApplicationOptions);
 	        this.markdown = this.convertValues(source["markdown"], MarkdownOptions);
 	        this.alert_callouts = this.convertValues(source["alert_callouts"], AlertCalloutOptions);
+	        this.window = this.convertValues(source["window"], WindowStateConfig);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -124,6 +142,7 @@ export namespace app {
 		    return a;
 		}
 	}
+	
 
 }
 

@@ -52,14 +52,20 @@ func defaultConfig() *Config {
 			UseAlertCallouts:  true,
 			AlertCalloutStyle: "GFMPlus",
 		},
+		Window: WindowStateConfig{
+			Width:     0,
+			Height:    0,
+			Maximized: false,
+		},
 	}
 }
 
-// Config represents the tabs in the settings dialog
+// Config represents the application configuration
 type Config struct {
 	Application   ApplicationOptions  `mapstructure:"application" json:"application"`       // Application
 	Markdown      MarkdownOptions     `mapstructure:"markdown" json:"markdown"`             // Markdown Features
 	AlertCallouts AlertCalloutOptions `mapstructure:"alert_callouts" json:"alert_callouts"` // Alert Callouts
+	Window        WindowStateConfig   `mapstructure:"window" json:"window"`                 // Window State
 }
 
 // Application-Specific Settings
@@ -102,6 +108,13 @@ type MarkdownOptions struct {
 type AlertCalloutOptions struct {
 	UseAlertCallouts  bool   `mapstructure:"use_alertcallouts" json:"use_alertcallouts"`   // GitHub and/or Obsidian Alert/Callouts
 	AlertCalloutStyle string `mapstructure:"alertcallout_style" json:"alertcallout_style"` // Select Alert Callout Style
+}
+
+// WindowStateConfig stores the persistent window dimensions and state
+type WindowStateConfig struct {
+	Width     int  `mapstructure:"width" json:"width"`
+	Height    int  `mapstructure:"height" json:"height"`
+	Maximized bool `mapstructure:"maximized" json:"maximized"`
 }
 
 // ConfigManager handles configuration loading and saving
@@ -174,6 +187,11 @@ func NewConfigManager() *ConfigManager {
 	// Set default values for Alert Callouts section
 	v.SetDefault("alert_callouts.use_alertcallouts", true)
 	v.SetDefault("alert_callouts.alertcallout_style", "GFMPlus")
+
+	// Set default values for Window section
+	v.SetDefault("window.width", 0)
+	v.SetDefault("window.height", 0)
+	v.SetDefault("window.maximized", false)
 
 	// Get configuration directory
 	configDir := getConfigDir(appName)
@@ -259,8 +277,33 @@ func (cm *ConfigManager) SetConfig(newConfig *Config) {
 		return
 	}
 	cm.mu.Lock()
-	newConfig.Application.UseSanitize = newConfig.Application.UseInlineHTML
-	cm.config = newConfig
+	defer cm.mu.Unlock()
+
+	copied := *newConfig
+	copied.Application.UseSanitize = copied.Application.UseInlineHTML
+	// Preserve window configuration if newConfig doesn't specify it (e.g. from settings dialog)
+	if copied.Window.Width == 0 && copied.Window.Height == 0 && !copied.Window.Maximized && cm.config != nil {
+		copied.Window = cm.config.Window
+	}
+	cm.config = &copied
+}
+
+// GetWindowState returns the current window state configuration
+func (cm *ConfigManager) GetWindowState() WindowStateConfig {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	if cm.config == nil {
+		return WindowStateConfig{}
+	}
+	return cm.config.Window
+}
+
+// SetWindowState updates the window state configuration
+func (cm *ConfigManager) SetWindowState(state WindowStateConfig) {
+	cm.mu.Lock()
+	if cm.config != nil {
+		cm.config.Window = state
+	}
 	cm.mu.Unlock()
 }
 
@@ -306,6 +349,11 @@ func (cm *ConfigManager) SaveConfig() error {
 	// Update viper with current config values for Alert Callouts section
 	cm.viper.Set("alert_callouts.use_alertcallouts", cm.config.AlertCallouts.UseAlertCallouts)
 	cm.viper.Set("alert_callouts.alertcallout_style", cm.config.AlertCallouts.AlertCalloutStyle)
+
+	// Update viper with current config values for Window section
+	cm.viper.Set("window.width", cm.config.Window.Width)
+	cm.viper.Set("window.height", cm.config.Window.Height)
+	cm.viper.Set("window.maximized", cm.config.Window.Maximized)
 
 	// Write configuration to file
 	if err := cm.viper.WriteConfigAs(cm.configPath); err != nil {

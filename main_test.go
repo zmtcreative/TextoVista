@@ -1,11 +1,15 @@
 package main
 
 import (
+	"context"
 	"io/fs"
 	"os"
 	"testing"
 
+	internalapp "texto-vista/internal/app"
 	"texto-vista/internal/cli"
+
+	"github.com/wailsapp/wails/v2/pkg/options"
 )
 
 func newMainSection9App(t *testing.T) *App {
@@ -43,8 +47,11 @@ func TestBuildWailsAppOptions(t *testing.T) {
 	if appOptions.MinWidth != 616 || appOptions.MinHeight != 539 {
 		t.Fatalf("min size = %dx%d, want 616x539", appOptions.MinWidth, appOptions.MinHeight)
 	}
-	if appOptions.Width != 1040 || appOptions.Height != 984 {
-		t.Fatalf("window size = %dx%d, want 1040x984", appOptions.Width, appOptions.Height)
+	if appOptions.Width > 1040 || appOptions.Width < 616 {
+		t.Fatalf("window width = %d, want between 616 and 1040", appOptions.Width)
+	}
+	if appOptions.Height > 984 || appOptions.Height < 539 {
+		t.Fatalf("window height = %d, want between 539 and 984", appOptions.Height)
 	}
 	if appOptions.BackgroundColour == nil {
 		t.Fatal("BackgroundColour is nil")
@@ -58,7 +65,7 @@ func TestBuildWailsAppOptions(t *testing.T) {
 	if _, err := fs.ReadDir(appOptions.AssetServer.Assets, "."); err != nil {
 		t.Fatalf("AssetServer.Assets is not readable: %v", err)
 	}
-	if appOptions.OnStartup == nil || appOptions.OnDomReady == nil || appOptions.OnShutdown == nil {
+	if appOptions.OnStartup == nil || appOptions.OnDomReady == nil || appOptions.OnShutdown == nil || appOptions.OnBeforeClose == nil {
 		t.Fatal("lifecycle callbacks were not wired")
 	}
 	if appOptions.Menu == nil {
@@ -108,5 +115,100 @@ func TestBuildWailsAppOptionsMenuLabels(t *testing.T) {
 	}
 	if helpMenu.Items[0].Click == nil || helpMenu.Items[2].Click == nil {
 		t.Fatal("one or more Help menu callbacks are nil")
+	}
+}
+
+func TestBuildWailsAppOptionsRestoresSavedWindowState(t *testing.T) {
+	mdrApp := newMainSection9App(t)
+	mdrApp.configManager.SetWindowState(internalapp.WindowStateConfig{
+		Width:     920,
+		Height:    740,
+		Maximized: false,
+	})
+
+	appOptions := buildWailsAppOptions(mdrApp)
+	if appOptions.Width != 920 || appOptions.Height != 740 {
+		t.Fatalf("restored window dimensions = %dx%d, want 920x740", appOptions.Width, appOptions.Height)
+	}
+	if appOptions.WindowStartState != options.Normal {
+		t.Fatalf("restored window start state = %v, want Normal", appOptions.WindowStartState)
+	}
+}
+
+func TestBuildWailsAppOptionsRestoresMaximizedState(t *testing.T) {
+	mdrApp := newMainSection9App(t)
+	mdrApp.configManager.SetWindowState(internalapp.WindowStateConfig{
+		Width:     1000,
+		Height:    800,
+		Maximized: true,
+	})
+
+	appOptions := buildWailsAppOptions(mdrApp)
+	if appOptions.WindowStartState != options.Maximised {
+		t.Fatalf("restored window start state = %v, want Maximised", appOptions.WindowStartState)
+	}
+}
+
+func TestAppBeforeCloseSavesWindowState(t *testing.T) {
+	mdrApp := newMainSection9App(t)
+	ctx := context.WithValue(context.Background(), "frontend", "mock")
+
+	origIsMax := appWindowIsMaximised
+	origGetSize := appWindowGetSize
+	defer func() {
+		appWindowIsMaximised = origIsMax
+		appWindowGetSize = origGetSize
+	}()
+
+	appWindowIsMaximised = func(ctx context.Context) bool { return false }
+	appWindowGetSize = func(ctx context.Context) (int, int) { return 880, 680 }
+
+	mdrApp.beforeClose(ctx)
+
+	state := mdrApp.configManager.GetWindowState()
+	if state.Width != 880 || state.Height != 680 || state.Maximized {
+		t.Fatalf("saved window state = %#v, want 880x680 unmaximized", state)
+	}
+
+	// Close while maximized: maximized flag is saved while unmaximized dimensions are preserved
+	appWindowIsMaximised = func(ctx context.Context) bool { return true }
+	mdrApp.beforeClose(ctx)
+
+	stateMax := mdrApp.configManager.GetWindowState()
+	if !stateMax.Maximized || stateMax.Width != 880 || stateMax.Height != 680 {
+		t.Fatalf("saved maximized window state = %#v, want maximized with preserved normal size 880x680", stateMax)
+	}
+}
+
+func TestAppStartupClampsNegativeYPosition(t *testing.T) {
+	mdrApp := newMainSection9App(t)
+	ctx := context.WithValue(context.Background(), "frontend", "mock")
+
+	origIsMax := appWindowIsMaximised
+	origGetPos := appWindowGetPosition
+	origSetPos := appWindowSetPosition
+	defer func() {
+		appWindowIsMaximised = origIsMax
+		appWindowGetPosition = origGetPos
+		appWindowSetPosition = origSetPos
+	}()
+
+	appWindowIsMaximised = func(ctx context.Context) bool { return false }
+	appWindowGetPosition = func(ctx context.Context) (int, int) { return 100, -50 }
+	var setX, setY int
+	calledSetPos := false
+	appWindowSetPosition = func(ctx context.Context, x, y int) {
+		calledSetPos = true
+		setX = x
+		setY = y
+	}
+
+	mdrApp.startup(ctx)
+
+	if !calledSetPos {
+		t.Fatal("expected WindowSetPosition to be called when y < 0")
+	}
+	if setX != 100 || setY != 0 {
+		t.Fatalf("WindowSetPosition called with (%d, %d), want (100, 0)", setX, setY)
 	}
 }
