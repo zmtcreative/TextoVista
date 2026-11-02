@@ -3,17 +3,18 @@
 <#
     .SYNOPSIS
         Uses the Antigravity CLI (agy) to summarize recent Git changes since the latest version tag
-        and updates the '## Unreleased' section in CHANGELOG.md.
+        and updates the '## [Unreleased]' section in CHANGELOG.md.
 
     .DESCRIPTION
         Identifies the most recent semantic version tag (matching 'vX.Y.Z'), collects all commits
         and diff statistics up to HEAD (or a specified ref), and invokes the Antigravity CLI ('agy')
         non-interactively.
 
-        The AI generates a high-level narrative summary and a categorized bullet list of changes
-        (e.g., - Rebrand:, - Add:, - Update:, - Fix:, - CI/CD:, - Docs:), formatted consistently
-        with existing entries in CHANGELOG.md. The resulting content is then cleanly inserted
-        or updated under the '## Unreleased' section at the top of CHANGELOG.md.
+        The AI generates a high-level narrative summary and categorized bullet lists under standard
+        Keep a Changelog subheadings (### Added, ### Changed, ### Deprecated, ### Removed,
+        ### Fixed, ### Security), formatted consistently with existing entries in CHANGELOG.md.
+        The resulting content is then cleanly inserted or updated under the '## [Unreleased]'
+        section at the top of CHANGELOG.md.
 
     .PARAMETER SinceTag
         The Git version tag to compare from (e.g., 'v0.5.3').
@@ -39,7 +40,7 @@
         If specified, includes unstaged and staged uncommitted working tree modifications in the summary.
 
     .PARAMETER DryRun
-        Generates and displays the proposed '## Unreleased' changelog content without modifying CHANGELOG.md.
+        Generates and displays the proposed '## [Unreleased]' changelog content without modifying CHANGELOG.md.
         Alias: -WhatIf.
 
     .PARAMETER NonInteractive
@@ -52,7 +53,7 @@
     .EXAMPLE
         ./scripts/Update-Changelog.ps1
         Discovers the most recent version tag, queries commits up to HEAD, generates summary via agy,
-        and prompts to update the '## Unreleased' section in CHANGELOG.md.
+        and prompts to update the '## [Unreleased]' section in CHANGELOG.md.
 
     .EXAMPLE
         ./scripts/Update-Changelog.ps1 -DryRun
@@ -212,13 +213,16 @@ function Get-ChangelogReferenceStyle {
     $entryCount = 0
 
     foreach ($line in $lines) {
-        if ($line -match '^##\s+v\d+\.\d+\.\d+') {
+        if ($line -match '^##\s+\[?(?:v)?\d+\.\d+\.\d+\]?') {
             $entryCount++
             if ($entryCount -gt 2) { break }
             $capturing = $true
         }
 
         if ($capturing) {
+            if ($line -match '^\[.+\]:\s+https?://') {
+                break
+            }
             $sampleLines += $line
         }
     }
@@ -238,12 +242,12 @@ function Get-CurrentUnreleasedContent {
     $unreleasedLines = @()
 
     foreach ($line in $lines) {
-        if ($line -match '^##\s+Unreleased') {
+        if ($line -match '^##\s+\[?Unreleased\]?') {
             $inUnreleased = $true
             continue
         }
 
-        if ($inUnreleased -and $line -match '^##\s+') {
+        if ($inUnreleased -and ($line -match '^##\s+' -or $line -match '^\[.+\]:\s+https?://')) {
             break
         }
 
@@ -266,7 +270,7 @@ function Build-AgyChangelogPrompt {
 
     $prompt = @"
 You are an expert technical release notes writer.
-Your task is to summarize the recent changes in this repository into content for the '## Unreleased' section of CHANGELOG.md.
+Your task is to summarize the recent changes in this repository into content for the '## [Unreleased]' section of CHANGELOG.md adhering strictly to the Keep a Changelog (1.1.0) format.
 
 ### REPOSITORY CHANGES:
 Baseline Tag: $SinceTag
@@ -302,7 +306,7 @@ $ReferenceStyle
     if (-not [string]::IsNullOrWhiteSpace($CurrentUnreleased)) {
         $prompt += @"
 
-### CURRENT CONTENT IN ## Unreleased:
+### CURRENT CONTENT IN ## [Unreleased]:
 $CurrentUnreleased
 "@
     }
@@ -311,19 +315,19 @@ $CurrentUnreleased
 
 ### OUTPUT REQUIREMENTS:
 1. Write 1 or 2 high-level narrative paragraphs summarizing the main achievements, improvements, fixes, or architectural updates.
-2. Include a '### CHANGES' subheader.
-3. Under '### CHANGES', provide a concise bullet list of the notable changes since $SinceTag.
-4. Categorize each bullet item with an appropriate standard prefix consistent with this project:
-   - Rebrand: (for project or binary naming changes)
-   - Add: (for new features or capabilities)
-   - Update: (for dependency, runtime, or component upgrades)
-   - Fix: (for bug fixes and corrections)
-   - CI/CD: (for GitHub Actions, workflow, or packaging changes)
-   - Scripts: (for developer script improvements)
-   - Docs: (for documentation updates)
+2. Group notable changes under standard Keep a Changelog (1.1.0) level-3 subheadings:
+   - ### Added (for new features or capabilities)
+   - ### Changed (for changes in existing functionality, rebrandings, updates, or refactorings)
+   - ### Deprecated (for soon-to-be removed features)
+   - ### Removed (for now removed features)
+   - ### Fixed (for any bug fixes)
+   - ### Security (in case of vulnerabilities)
+   Only include subheadings that have actual items.
+3. Under each subheader, provide concise, high-quality bullet points describing the changes.
+4. Do NOT use redundant prefixes like '- Add:', '- Fix:', '- Update:', '- Rebrand:', etc. in bullet items. The category subheader already conveys the type of change. Start bullet points directly with an action verb or noun (e.g., '- Proportional window scaling on screens with constrained vertical height.').
 5. Keep bullet descriptions clear, professional, and directly focused on user-visible or architectural value.
-6. If the current '## Unreleased' section contains temporary placeholders (such as 'Ongoing development updates will be collected here until the next tagged release.' or generic placeholder notes), discard and replace them with the new summary and bullet list. Only retain existing notes if they describe actual changes or requirements not already captured.
-7. CRITICAL: Do NOT output any '> [!WARNING]' alert callout or the '## Unreleased' header itself. Stability warning alerts and section headers are handled automatically by the script.
+6. If the current '## [Unreleased]' section contains temporary placeholders (such as 'Ongoing development updates will be collected here until the next tagged release.' or generic placeholder notes), discard and replace them with the new summary and bullet list. Only retain existing notes if they describe actual changes or requirements not already captured.
+7. CRITICAL: Do NOT output any '> [!WARNING]' alert callout or the '## [Unreleased]' header itself. Stability warning alerts, section headers, and compare link definitions are handled automatically by the script.
 8. CRITICAL: Do NOT call any tools. Output ONLY pure markdown text without wrapping the entire response in backtick code fences (no ```markdown or ```).
 "@
 
@@ -398,15 +402,16 @@ function Format-UnreleasedContent {
     $text = $SummaryMarkdown.Trim()
 
     # Strip any accidental > [!WARNING] alert generated by the AI
-    $text = [regex]::Replace($text, '(?ms)^>\s*\[!WARNING\].*?(?=\r?\n\r?\n|\r?\n###\s+CHANGES|\Z)', '').Trim()
+    $text = [regex]::Replace($text, '(?ms)^>\s*\[!WARNING\].*?(?=\r?\n\r?\n|\r?\n###|\Z)', '').Trim()
 
     if ([string]::IsNullOrWhiteSpace($AlertMarkdown)) {
         return $text
     }
 
-    # Position: AFTER the summary paragraph(s), but BEFORE the '### CHANGES' header
-    if ($text -match '(?m)^###\s+CHANGES') {
-        return [regex]::Replace($text, '(?m)^###\s+CHANGES', "$AlertMarkdown`n`n### CHANGES", 1)
+    # Position: AFTER the summary paragraph(s), but BEFORE the first category header
+    $categoryPattern = '(?m)^###\s+(?:Added|Changed|Deprecated|Removed|Fixed|Security|CHANGES)\b'
+    if ($text -match $categoryPattern) {
+        return [regex]::new($categoryPattern).Replace($text, "$AlertMarkdown`n`n`$0", 1)
     } else {
         return "$text`n`n$AlertMarkdown"
     }
@@ -445,7 +450,8 @@ function Invoke-AgyChangelogSummary {
 function Update-ChangelogDocument {
     param(
         [string]$ChangelogPath,
-        [string]$NewUnreleasedBody
+        [string]$NewUnreleasedBody,
+        [string]$SinceTag = ""
     )
 
     if (-not (Test-Path -Path $ChangelogPath -PathType Leaf)) {
@@ -454,24 +460,42 @@ function Update-ChangelogDocument {
 
     $content = Get-Content -Path $ChangelogPath -Raw -Encoding utf8
 
-    # Regex to find '## Unreleased' section up to the next '## ' header or end of file
-    $unreleasedPattern = '(?ms)^##\s+Unreleased\s*\r?\n.*?(?=^##\s+[^#]|\Z)'
-    $formattedBlock = "## Unreleased`n`n" + $NewUnreleasedBody.Trim() + "`n`n"
+    # Regex to find '## [Unreleased]' or '## Unreleased' section up to the next '## ' header or link definitions or end of file
+    $unreleasedPattern = '(?ms)^##\s+\[?Unreleased\]?\s*\r?\n.*?(?=^##\s+[^#]|^\[.+\]:\s+https?://|\Z)'
+    $formattedBlock = "## [Unreleased]`n`n" + $NewUnreleasedBody.Trim() + "`n`n"
 
     if ($content -match $unreleasedPattern) {
         $newContent = [regex]::Replace($content, $unreleasedPattern, [System.Text.RegularExpressions.MatchEvaluator]{ return $formattedBlock })
     } else {
-        # If '## Unreleased' header does not exist, insert it before the first version header
-        $versionPattern = '(?m)^##\s+v\d+\.\d+\.\d+'
+        # If '## [Unreleased]' header does not exist, insert it before the first version header
+        $versionPattern = '(?m)^##\s+\[?(?:v)?\d+\.\d+\.\d+'
         if ($content -match $versionPattern) {
-            $newContent = [regex]::Replace($content, $versionPattern, [System.Text.RegularExpressions.MatchEvaluator]{ return ($formattedBlock + $_.Value) }, 1)
+            $newContent = [regex]::new($versionPattern).Replace($content, [System.Text.RegularExpressions.MatchEvaluator]{ return ($formattedBlock + $_.Value) }, 1)
         } else {
             # Append at end of file
             $newContent = $content.TrimEnd() + "`n`n" + $formattedBlock
         }
     }
 
-    return $newContent
+    # Maintain compare link for [Unreleased] at the bottom
+    if (-not [string]::IsNullOrWhiteSpace($SinceTag)) {
+        $repoUrl = "https://github.com/zmtcreative/TextoVista"
+        if ($newContent -match '(?m)^\[.+\]:\s*(https?://github\.com/[^/\s]+/[^/\s#?]+?)(?:/compare|/releases|$)') {
+            $repoUrl = ($Matches[1] -replace '\.git$', '').TrimEnd('/')
+        }
+        $unreleasedLink = "[Unreleased]: $repoUrl/compare/$SinceTag...HEAD"
+        $unreleasedLinkPattern = '(?m)^\[Unreleased\]:\s+https?://\S+'
+        $versionLinkPattern = '(?m)^\[\d+\.\d+\.\d+\]:\s+https?://\S+'
+        if ($newContent -match $unreleasedLinkPattern) {
+            $newContent = [regex]::new($unreleasedLinkPattern).Replace($newContent, $unreleasedLink, 1)
+        } elseif ($newContent -match $versionLinkPattern) {
+            $newContent = [regex]::new($versionLinkPattern).Replace($newContent, "$unreleasedLink`n`$0", 1)
+        } else {
+            $newContent = $newContent.TrimEnd() + "`n`n$unreleasedLink`n"
+        }
+    }
+
+    return ($newContent.TrimEnd() + "`n")
 }
 
 # ==============================================================================
@@ -531,7 +555,7 @@ try {
     if ($gitData.CommitCount -eq 0 -and [string]::IsNullOrWhiteSpace($gitData.UncommittedInfo)) {
         Write-Host ""
         Write-Host -ForegroundColor Yellow "Notice: No new commits or changes found between '$SinceTag' and '$ToRef'."
-        Write-Host -ForegroundColor Yellow "The '## Unreleased' section does not need updating at this time."
+        Write-Host -ForegroundColor Yellow "The '## [Unreleased]' section does not need updating at this time."
         Write-Host ""
         exit 0
     }
@@ -563,15 +587,15 @@ try {
         throw "Antigravity CLI returned empty changelog content."
     }
 
-    # 8. Format section with stability warning alert positioned after summary and before ### CHANGES
+    # 8. Format section with stability warning alert positioned after summary and before category subheadings
     $unreleasedBody = Format-UnreleasedContent -SummaryMarkdown $summaryMarkdown -AlertMarkdown $alertMarkdown
 
     Write-Host ""
     Write-Host -ForegroundColor Cyan "=================================================================="
-    Write-Host -ForegroundColor Cyan "               Proposed '## Unreleased' Content                   "
+    Write-Host -ForegroundColor Cyan "               Proposed '## [Unreleased]' Content                 "
     Write-Host -ForegroundColor Cyan "=================================================================="
     Write-Host ""
-    Write-Host -ForegroundColor White "## Unreleased"
+    Write-Host -ForegroundColor White "## [Unreleased]"
     Write-Host ""
     Write-Host $unreleasedBody
     Write-Host ""
@@ -598,7 +622,7 @@ try {
 
     # 11. Update CHANGELOG.md
     Write-Host -ForegroundColor Cyan "  Applying updates to $ChangelogPath..."
-    $updatedDocument = Update-ChangelogDocument -ChangelogPath $ChangelogPath -NewUnreleasedBody $unreleasedBody
+    $updatedDocument = Update-ChangelogDocument -ChangelogPath $ChangelogPath -NewUnreleasedBody $unreleasedBody -SinceTag $SinceTag
     [System.IO.File]::WriteAllText($ChangelogPath, $updatedDocument, [System.Text.UTF8Encoding]::new($false))
 
     Write-Host -ForegroundColor Green "  CHANGELOG.md successfully updated!"

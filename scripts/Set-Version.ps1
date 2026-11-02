@@ -1212,8 +1212,9 @@ function Test-ChangelogEntry {
     }
 
     $lines = Get-Content -Path $ChangelogPath -Encoding utf8
-    $escapedTag = [regex]::Escape($TagName)
-    $headerRegex = "^##\s+\[?$escapedTag\]?(\s+-\s+.*)?$"
+    $cleanVersion = $TagName -replace '^v', ''
+    $escapedVersion = [regex]::Escape($cleanVersion)
+    $headerRegex = "^##\s+\[?(?:v)?$escapedVersion\]?(\s+-\s+.*)?$"
     $start = $null
     $end = $lines.Count
 
@@ -1222,7 +1223,7 @@ function Test-ChangelogEntry {
             $start = $i + 1
             continue
         }
-        if ($null -ne $start -and $lines[$i] -match '^##\s+') {
+        if ($null -ne $start -and ($lines[$i] -match '^##\s+' -or $lines[$i] -match '^\[.+\]:\s+https?://')) {
             $end = $i
             break
         }
@@ -1233,7 +1234,7 @@ function Test-ChangelogEntry {
             Exists     = $true
             HasEntry   = $false
             HasContent = $false
-            Message    = "No matching section header found for tag '$TagName' in CHANGELOG.md (expected header like '## $TagName - YYYY-MM-DD')."
+            Message    = "No matching section header found for tag '$TagName' in CHANGELOG.md (expected header like '## [$cleanVersion] - YYYY-MM-DD')."
         }
     }
 

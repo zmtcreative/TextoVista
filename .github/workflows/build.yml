@@ -336,13 +336,17 @@ jobs:
           $start = $null
           $end = $lines.Count
 
+          $cleanVersion = $tag -replace '^v', ''
+          $escapedVersion = [regex]::Escape($cleanVersion)
+          $versionRegex = "^##\s+\[?(?:v)?$escapedVersion\]?(\s+-\s+.*)?$"
+
           for ($index = 0; $index -lt $lines.Count; $index++) {
-            if ($lines[$index] -match "^##\s+$([regex]::Escape($tag))(\s+-\s+.*)?$") {
+            if ($lines[$index] -match $versionRegex) {
               $start = $index + 1
               continue
             }
 
-            if ($start -ne $null -and $lines[$index] -match '^##\s+') {
+            if ($start -ne $null -and ($lines[$index] -match '^##\s+' -or $lines[$index] -match '^\[.+\]:\s+https?://')) {
               $end = $index
               break
             }
@@ -362,7 +366,8 @@ jobs:
             exit 0
           }
 
-          if ($body -notmatch '<\s*details\b' -and $body -match '(?ms)^(.*?)###\s+CHANGES\s*\r?\n(.*)$') {
+          $categoryRegex = '(?ms)^(.*?)(###\s+(?:Added|Changed|Deprecated|Removed|Fixed|Security|CHANGES)\b.*)$'
+          if ($body -notmatch '<\s*details\b' -and $body -match $categoryRegex) {
             $intro = $Matches[1].TrimEnd()
             $changes = $Matches[2].Trim()
             if ([string]::IsNullOrWhiteSpace($intro)) {
