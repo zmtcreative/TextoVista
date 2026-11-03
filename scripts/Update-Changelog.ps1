@@ -485,7 +485,7 @@ function Update-ChangelogDocument {
         }
         $unreleasedLink = "[Unreleased]: $repoUrl/compare/$SinceTag...HEAD"
         $unreleasedLinkPattern = '(?m)^\[Unreleased\]:\s+https?://\S+'
-        $versionLinkPattern = '(?m)^\[\d+\.\d+\.\d+\]:\s+https?://\S+'
+        $versionLinkPattern = '(?m)^\[\d+\.\d+\.\d+(?:-[^\]]+)?\]:\s+https?://\S+'
         if ($newContent -match $unreleasedLinkPattern) {
             $newContent = [regex]::new($unreleasedLinkPattern).Replace($newContent, $unreleasedLink, 1)
         } elseif ($newContent -match $versionLinkPattern) {

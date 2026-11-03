@@ -222,15 +222,17 @@ function Parse-VersionString {
     param([string]$Tag)
     $clean = $Tag.Trim() -replace '^[vV]', ''
     $obj = [PSCustomObject]@{
-        Raw             = $Tag
-        Major           = 0
-        Minor           = 0
-        Patch           = 0
-        Prerelease      = $null
-        Stage           = $null
-        StageNum        = $null
-        ValidationError = $null
-        IsValid         = $false
+        Raw                = $Tag
+        Major              = 0
+        Minor              = 0
+        Patch              = 0
+        Prerelease         = $null
+        OriginalPrerelease = $null
+        WasNormalized      = $false
+        Stage              = $null
+        StageNum           = $null
+        ValidationError    = $null
+        IsValid            = $false
     }
 
     if ($clean -match '\+') {
@@ -239,7 +241,7 @@ function Parse-VersionString {
     }
 
     if ($clean -notmatch '^(?<major>0|[1-9]\d*)\.(?<minor>0|[1-9]\d*)\.(?<patch>0|[1-9]\d*)(?:-(?<prerelease>.+))?$') {
-        $obj.ValidationError = "Version '$Tag' does not match semantic version format (expected 'X.Y.Z' or 'vX.Y.Z', e.g. '0.8.0' or 'v0.7.3-rc1')."
+        $obj.ValidationError = "Version '$Tag' does not match semantic version format (expected 'X.Y.Z' or 'vX.Y.Z', e.g. '0.8.0' or 'v0.7.3-rc.1')."
         return $obj
     }
 
@@ -253,9 +255,9 @@ function Parse-VersionString {
     }
 
     $prerelease = $Matches['prerelease']
-    # Allowed prerelease formats: alpha, beta, rc with optional sequence number (e.g., -alpha1, -beta2, -rc1)
+    # Allowed prerelease formats: alpha, beta, rc with optional delimiter and sequence number (e.g., -alpha.1, -alpha1, -beta2, -rc.1, -rc1)
     if ($prerelease -notmatch '^(?<stage>alpha|beta|rc)(?:[.-]?(?<num>0|[1-9]\d*))?$') {
-        $obj.ValidationError = "Prerelease '$prerelease' is not permitted. Only 'alpha', 'beta', or 'rc' stages (e.g. '-alpha1', '-beta1', '-rc1') are allowed."
+        $obj.ValidationError = "Prerelease '$prerelease' is not permitted. Only 'alpha', 'beta', or 'rc' stages (e.g. 'alpha.1', 'beta.1', 'rc.1') are allowed."
         return $obj
     }
 
@@ -267,7 +269,13 @@ function Parse-VersionString {
         return $obj
     }
 
-    $obj.Prerelease = $prerelease
+    # Normalize to SemVer 2.0.0 dot-separated format: stage.num (e.g. rc.1, beta.2)
+    $normalizedPrerelease = if ($num -gt 0) { "${stage}.${num}" } else { $stage }
+    $wasNormalized = ($prerelease -ne $normalizedPrerelease)
+
+    $obj.Prerelease = $normalizedPrerelease
+    $obj.OriginalPrerelease = $prerelease
+    $obj.WasNormalized = $wasNormalized
     $obj.Stage = $stage
     $obj.StageNum = $num
     $obj.IsValid = $true
@@ -331,6 +339,10 @@ function Calculate-NextVersion {
             throw "Invalid explicit version provided: '$ExplicitVersion'. $($parsed.ValidationError)"
         }
 
+        if ($parsed.WasNormalized) {
+            Write-Host -ForegroundColor Yellow "  Notice: Normalized non-standard pre-release identifier '$($parsed.OriginalPrerelease)' to SemVer 2.0.0 standard '$($parsed.Prerelease)'."
+        }
+
         # Check for major version jump warning
         if ($parsed.Major -gt ($CurrentObj.Major + 1)) {
             Write-Host ""
@@ -390,7 +402,7 @@ function Calculate-NextVersion {
                 $stage = "alpha"
                 $stageNum = 1
             }
-            $prerelease = "alpha$stageNum"
+            $prerelease = "alpha.$stageNum"
         }
         "beta" {
             if (-not $CurrentObj.Prerelease) {
@@ -404,7 +416,7 @@ function Calculate-NextVersion {
                 $stage = "beta"
                 $stageNum = 1
             }
-            $prerelease = "beta$stageNum"
+            $prerelease = "beta.$stageNum"
         }
         "rc" {
             if (-not $CurrentObj.Prerelease) {
@@ -418,7 +430,7 @@ function Calculate-NextVersion {
                 $stage = "rc"
                 $stageNum = 1
             }
-            $prerelease = "rc$stageNum"
+            $prerelease = "rc.$stageNum"
         }
         default {
             throw "Unknown bump action '$BumpAction'."
@@ -695,7 +707,7 @@ function Build-UpdatedChangelog {
     $combinedLinks = "$unreleasedLink`n$newReleaseLink"
 
     $unreleasedLinkPattern = '(?m)^\[Unreleased\]:\s+https?://\S+'
-    $versionLinkPattern = '(?m)^\[\d+\.\d+\.\d+\]:\s+https?://\S+'
+    $versionLinkPattern = '(?m)^\[\d+\.\d+\.\d+(?:-[^\]]+)?\]:\s+https?://\S+'
 
     if ($newContent -match $unreleasedLinkPattern) {
         $newContent = [regex]::new($unreleasedLinkPattern).Replace($newContent, $combinedLinks, 1)
