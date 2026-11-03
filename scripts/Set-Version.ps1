@@ -1,193 +1,121 @@
+#Requires -Version 7.2
+
 <#
     .SYNOPSIS
-        Sets and bumps project versions across target files, commits changes, and optionally manages Git tags.
-    .DESCRIPTION
-        Uses wails.json as the Source of Truth for the current project version.
-        Calculates the next semantic version and Windows 4-part numeric version,
-        prompts the user to confirm the bump, updates wails.json, package.json,
-        info.json, and project.nsi, syncs frontend/package-lock.json via npm,
-        commits the changes with a Conventional Commit message
-        ('chore(release): bump version to <version>'), and pushes the commit
-        to the remote repository.
+        Streamlined release orchestrator for TextoVista: prepares release notes via AI,
+        updates CHANGELOG.md, bumps version across project files, and creates annotated Git tags.
 
-        Optionally creates an annotated Git tag locally using the updated version as
-        the proposed tag (-CreateVersionTag), and only pushes the tag to the remote
-        repository when explicitly requested (-PushTag).
-    .PARAMETER NewVersion
-        The explicit version or Git tag to set (e.g., '0.6.0' or 'v0.6.0').
-        Aliases: -Version, -TagName, -TargetVersion.
-    .PARAMETER Message
-        The commit message for setting the version. Defaults to 'chore(release): bump version to <version>'.
-        Alias: -CommitMessage.
-    .PARAMETER TagMessage
-        The annotation message for creating the Git tag. Defaults to 'Version: <version>' for SemVer tags (e.g. 'Version: 1.0.0') or 'Version: <tag>' for non-SemVer tags.
+    .DESCRIPTION
+        Orchestrates an atomic, deferred-execution release workflow:
+        1. Ensures the Git working tree is completely clean before proceeding.
+        2. Resolves the target version via explicit SemVer (-Version) or semantic bump (-Bump).
+        3. Queries commits since the latest version tag and drafts Keep a Changelog 1.1.0 release notes
+           using the Antigravity CLI ('agy'), incorporating any existing notes under '## [Unreleased]'.
+        4. Calculates in-memory file diffs for wails.json, package.json, package-lock.json, info.json,
+           project.nsi, and CHANGELOG.md.
+        5. Displays a unified preview of the release changes and prompts for confirmation.
+           - If aborted, ZERO disk changes, Git commits, or tags are created.
+           - If approved, atomically applies all updates, creates a single release commit,
+             and creates an annotated Git tag locally.
+        6. Prompts to push the branch and new tag to the remote repository.
+
+    .PARAMETER Version
+        Explicit target semantic version (e.g. '0.8.0', '1.0.0-rc1').
+        Mutually exclusive with -Bump.
+        Aliases: -Ver.
+
     .PARAMETER Bump
-        The version segment to increment: 'Patch', 'Minor', 'Major', or 'Prerelease'.
-    .PARAMETER IncrementPatch
-        Increment the patch version (e.g., 0.5.2 -> 0.5.3). Alias: -Patch.
-    .PARAMETER IncrementMinor
-        Increment the minor version (e.g., 0.5.2 -> 0.6.0). Alias: -Minor.
-    .PARAMETER IncrementMajor
-        Increment the major version (e.g., 0.5.2 -> 1.0.0). Alias: -Major.
-    .PARAMETER IncrementPrerelease
-        Increment the prerelease sequence number (e.g., beta1 -> beta2).
-    .PARAMETER PrereleaseStage
-        Set or switch the prerelease stage: 'alpha', 'beta', or 'rc'.
-    .PARAMETER SetAlpha
-        Convenience switch to set the prerelease stage to alpha.
-    .PARAMETER SetBeta
-        Convenience switch to set the prerelease stage to beta.
-    .PARAMETER SetReleaseCandidate
-        Convenience switch to set the prerelease stage to rc. Alias: -SetRC.
-    .PARAMETER ReleaseVersion
-        Finalize a prerelease into a stable release (e.g., 0.5.2-beta1 -> 0.5.2). Alias: -Release.
-    .PARAMETER CreateVersionTag
-        Create an annotated Git tag locally using the new version from wails.json as the proposed tag.
-        Prompts the user to verify or change the tag name before applying. Allows editing to custom or
-        non-SemVer tags (such as 'test-vX.Y.Z') with a warning, skipping CHANGELOG.md verification for
-        non-SemVer tags. Alias: -Tag, -CreateTag.
-    .PARAMETER PushTag
-        Push the Git tag to the remote repository.
-        - If used with -CreateVersionTag: immediately pushes the confirmed tag to remote.
-        - If used without -CreateVersionTag: inspects the most recent Git tag and prompts to push it.
-    .PARAMETER CurrentVersion
-        Skip version bumping operations and create the Git tag using the existing version from wails.json.
-        Only valid in combination with -CreateVersionTag.
-    .PARAMETER ShowCurrentVersion
-        Show current version in wails.json, most recent Git tag, and target files status without making changes.
-        Alias: -Show.
-    .PARAMETER DryRun
-        Preview all file changes, commit details, and Git operations without modifying anything.
-        Alias for -WhatIf.
-    .PARAMETER NoPush
-        Commit changes locally, but do not push commits to the remote repository.
+        Semantic version bump action using standard SemVer / uv semantics:
+        'major', 'minor', 'patch', 'stable', 'alpha', 'beta', or 'rc'.
+        Mutually exclusive with -Version.
+
+    .PARAMETER ChangelogPath
+        Path to CHANGELOG.md. Defaults to CHANGELOG.md in the project root.
+
+    .PARAMETER Model
+        Optional Antigravity CLI model to pass to 'agy --model <model>'.
+
+    .PARAMETER SkipChangelog
+        If specified, bypasses AI changelog generation and maintains existing changelog content.
+
+    .PARAMETER ShowPrompt
+        Displays the exact prompt sent to the Antigravity CLI for inspection/debugging.
+
     .PARAMETER NonInteractive
-        Run without interactive confirmation prompts. Alias: -Force, -Yes.
+        Applies changes and creates tag without interactive confirmation prompts.
+        Aliases: -Force, -Yes.
+
     .EXAMPLE
-        ./scripts/Set-Version.ps1 -IncrementPatch
-        Bumps patch version in wails.json and project files, commits with 'chore(release): bump version to X.Y.Z',
-        and pushes the commit to origin. Does not create a Git tag.
+        ./scripts/Set-Version.ps1 -Bump patch
+        Calculates the next patch release, drafts release notes, previews changes,
+        and prompts to commit and tag.
+
     .EXAMPLE
-        ./scripts/Set-Version.ps1 -Minor -CreateVersionTag
-        Bumps minor version, commits and pushes the commit, prompts to create local Git tag 'vX.Y.0',
-        and creates the tag locally only (does not push tag).
+        ./scripts/Set-Version.ps1 -Bump minor
+        Bumps the minor version (e.g. 0.7.0 -> 0.8.0), updates all files, and tags.
+
     .EXAMPLE
-        ./scripts/Set-Version.ps1 -CreateVersionTag -CurrentVersion
-        Creates a Git tag locally for the current version in wails.json without bumping or modifying project files.
+        ./scripts/Set-Version.ps1 -Version "0.8.0"
+        Sets the version explicitly to 0.8.0.
+
     .EXAMPLE
-        ./scripts/Set-Version.ps1 -IncrementPatch -CreateVersionTag -PushTag
-        Bumps patch version, commits, pushes commit, prompts to verify tag, creates tag locally,
-        and pushes the tag to origin.
-    .EXAMPLE
-        ./scripts/Set-Version.ps1 -PushTag
-        Standalone tag push: finds most recent Git tag, prompts for verification, and pushes to origin.
+        ./scripts/Set-Version.ps1 -Bump beta
+        Initiates or increments a beta prerelease (e.g. 0.7.0 -> 0.7.1-beta1, or 0.7.1-beta1 -> 0.7.1-beta2).
 #>
 
-#Requires -Version 7.0
+[CmdletBinding(SupportsShouldProcess)]
+param(
+    [Parameter(ParameterSetName = "ExplicitVersion", Mandatory = $true, Position = 0)]
+    [Alias("Ver")]
+    [string]$Version,
 
-[CmdletBinding(SupportsShouldProcess = $true)]
-param (
-    [Parameter(Position = 0, HelpMessage = "The explicit target version or Git tag to set (e.g., '0.6.0' or 'v0.6.0').")]
-    [Alias("Version", "TagName", "TargetVersion")]
-    [string]$NewVersion = "",
+    [Parameter(ParameterSetName = "BumpStep", Mandatory = $true, Position = 0)]
+    [ValidateSet("major", "minor", "patch", "stable", "alpha", "beta", "rc")]
+    [string]$Bump,
 
-    [Parameter(HelpMessage = "The commit message for setting the version. Defaults to 'chore(release): bump version to <version>'.")]
-    [Alias("CommitMessage")]
-    [string]$Message = "",
+    [Parameter(Mandatory = $false)]
+    [string]$ChangelogPath = "",
 
-    [Parameter(HelpMessage = "The tag message for setting the tag. Defaults to 'Version: <version>' for SemVer tags (or 'Version: <tag>' for non-SemVer tags).")]
-    [string]$TagMessage = "",
+    [Parameter(Mandatory = $false)]
+    [string]$Model = "",
 
-    [Parameter(HelpMessage = "The version segment to increment.")]
-    [ValidateSet('Patch', 'Minor', 'Major', 'Prerelease')]
-    [string]$Bump = "",
+    [Parameter(Mandatory = $false)]
+    [switch]$SkipChangelog,
 
-    [Parameter(HelpMessage = "Increment the patch version.")]
-    [Alias("Patch")]
-    [switch]$IncrementPatch,
+    [Parameter(Mandatory = $false)]
+    [switch]$AllowDirty,
 
-    [Parameter(HelpMessage = "Increment the minor version.")]
-    [Alias("Minor")]
-    [switch]$IncrementMinor,
+    [Parameter(Mandatory = $false)]
+    [switch]$ShowPrompt,
 
-    [Parameter(HelpMessage = "Increment the major version.")]
-    [Alias("Major")]
-    [switch]$IncrementMajor,
-
-    [Parameter(HelpMessage = "Increment the prerelease sequence.")]
-    [switch]$IncrementPrerelease,
-
-    [Parameter(HelpMessage = "Set prerelease stage (alpha, beta, or rc).")]
-    [ValidateSet('alpha', 'beta', 'rc')]
-    [Alias("Stage", "Prerelease")]
-    [string]$PrereleaseStage = "",
-
-    [Parameter(HelpMessage = "Set prerelease stage to alpha.")]
-    [switch]$SetAlpha,
-
-    [Parameter(HelpMessage = "Set prerelease stage to beta.")]
-    [switch]$SetBeta,
-
-    [Parameter(HelpMessage = "Set prerelease stage to release candidate (rc).")]
-    [Alias("SetRC")]
-    [switch]$SetReleaseCandidate,
-
-    [Parameter(HelpMessage = "Finalize prerelease to stable release.")]
-    [Alias("Release")]
-    [switch]$ReleaseVersion,
-
-    [Parameter(HelpMessage = "Create an annotated Git tag locally using the updated version as the proposed tag.")]
-    [Alias("Tag", "CreateTag")]
-    [switch]$CreateVersionTag,
-
-    [Parameter(HelpMessage = "Skip version bumping operations and create the Git tag using the current version from wails.json. Only valid with -CreateVersionTag.")]
-    [switch]$CurrentVersion,
-
-    [Parameter(HelpMessage = "Push Git tag to remote repository.")]
-    [Alias("Push")]
-    [switch]$PushTag,
-
-    [Parameter(HelpMessage = "Show current versions from wails.json, Git tags, and target files without making changes.")]
-    [Alias("show")]
-    [switch]$ShowCurrentVersion,
-
-    [Parameter(HelpMessage = "Preview planned changes without writing to disk or Git.")]
-    [switch]$DryRun,
-
-    [Parameter(HelpMessage = "Do not push commits or tags to the remote repository.")]
-    [switch]$NoPush,
-
-    [Parameter(HelpMessage = "Run non-interactively without confirmation prompts.")]
-    [Alias("Force", "Yes", "f", "y")]
+    [Parameter(Mandatory = $false)]
+    [Alias("Force", "Yes")]
     [switch]$NonInteractive
 )
 
-# --- Path Resolution & Project Setup ---
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+
+# --- Project Paths Resolution ---
 $ScriptFullName = $MyInvocation.MyCommand.Path
-$ScriptDir = Split-Path -Parent $ScriptFullName
-$ProjectRoot = if ($ScriptDir -match '[\\/]scripts[\\/]?$') {
-    Split-Path -Parent $ScriptDir
-}
-elseif (Test-Path (Join-Path (Get-Location) "go.mod")) {
+$ScriptDir = if (-not [string]::IsNullOrWhiteSpace($ScriptFullName)) {
+    Split-Path -Parent $ScriptFullName
+} elseif (-not [string]::IsNullOrWhiteSpace($PSScriptRoot)) {
+    $PSScriptRoot
+} else {
     (Get-Location).Path
 }
-else {
+
+$ScriptProjectRoot = if ($ScriptDir -match '[\\/]scripts[\\/]?$') {
+    Split-Path -Parent $ScriptDir
+} elseif (Test-Path (Join-Path (Get-Location) "wails.json")) {
+    (Get-Location).Path
+} else {
     $ScriptDir
 }
 
-if (-not (Test-Path -Path (Join-Path $ProjectRoot "go.mod"))) {
-    Write-Host -ForegroundColor Red "Error: Could not locate 'go.mod' in project root: $ProjectRoot"
-    exit 1
-}
-
-$WailsConfigPath = Join-Path $ProjectRoot "wails.json"
-if (-not (Test-Path -Path $WailsConfigPath -PathType Leaf)) {
-    Write-Host -ForegroundColor Red "Error: Source of truth 'wails.json' not found at: $WailsConfigPath"
-    exit 1
-}
-
-# --- Declarative Target Files Registry ---
-$TargetFiles = @(
+# --- Target Files Definition ---
+$TargetFilesConfig = @(
     @{
         RelPath = "wails.json"
         Format  = "SemVer"
@@ -221,321 +149,143 @@ $TargetFiles = @(
 )
 
 # ==============================================================================
-# Helper Functions: Parameter & Flag Resolvers
+# Helper Functions: Pre-Flight & Environment Checks
 # ==============================================================================
 
-function Resolve-PrereleaseStage {
-    param (
-        [string]$Stage,
-        [switch]$Alpha,
-        [switch]$Beta,
-        [switch]$RC
-    )
-    if ($Alpha) { return "alpha" }
-    if ($Beta) { return "beta" }
-    if ($RC) { return "rc" }
-    return $Stage
-}
-
-function Resolve-BumpAction {
-    param (
-        [string]$Bump,
-        [switch]$Major,
-        [switch]$Minor,
-        [switch]$Patch,
-        [switch]$Prerelease
-    )
-    if ($Major) { return "Major" }
-    if ($Minor) { return "Minor" }
-    if ($Patch) { return "Patch" }
-    if ($Prerelease) { return "Prerelease" }
-    return $Bump
-}
-
-function Assert-ParameterRules {
-    param (
-        [switch]$CurrentVersion,
-        [switch]$CreateVersionTag,
-        [string]$NewVersion,
-        [string]$Bump,
-        [switch]$IncrementMajor,
-        [switch]$IncrementMinor,
-        [switch]$IncrementPatch,
-        [switch]$IncrementPrerelease,
-        [string]$PrereleaseStage,
-        [switch]$SetAlpha,
-        [switch]$SetBeta,
-        [switch]$SetReleaseCandidate,
-        [switch]$ReleaseVersion
+function Assert-Prerequisites {
+    param(
+        [string]$ProjectRoot,
+        [bool]$NeedAgy
     )
 
-    if ($CurrentVersion) {
-        if (-not $CreateVersionTag) {
-            Write-Host -ForegroundColor Red "Error: The -CurrentVersion switch can only be used in combination with -CreateVersionTag."
-            exit 1
-        }
-        $bumpFlagsSpecified = (
-            (-not [string]::IsNullOrWhiteSpace($NewVersion)) -or
-            (-not [string]::IsNullOrWhiteSpace($Bump)) -or
-            $IncrementMajor -or $IncrementMinor -or $IncrementPatch -or $IncrementPrerelease -or
-            (-not [string]::IsNullOrWhiteSpace($PrereleaseStage)) -or
-            $SetAlpha -or $SetBeta -or $SetReleaseCandidate -or $ReleaseVersion
-        )
-        if ($bumpFlagsSpecified) {
-            Write-Host -ForegroundColor Red "Error: The -CurrentVersion switch prevents version bumping and cannot be combined with version increment parameters."
-            exit 1
-        }
-    }
-}
-
-function Test-ExplicitBumpInputSpecified {
-    param (
-        [string]$NewVersion,
-        [string]$Bump,
-        [switch]$IncrementMajor,
-        [switch]$IncrementMinor,
-        [switch]$IncrementPatch,
-        [switch]$IncrementPrerelease,
-        [string]$PrereleaseStage,
-        [switch]$SetAlpha,
-        [switch]$SetBeta,
-        [switch]$SetReleaseCandidate,
-        [switch]$ReleaseVersion,
-        [switch]$CreateVersionTag
-    )
-
-    return (
-        (-not [string]::IsNullOrWhiteSpace($NewVersion)) -or
-        (-not [string]::IsNullOrWhiteSpace($Bump)) -or
-        $IncrementMajor -or $IncrementMinor -or $IncrementPatch -or $IncrementPrerelease -or
-        (-not [string]::IsNullOrWhiteSpace($PrereleaseStage)) -or
-        $SetAlpha -or $SetBeta -or $SetReleaseCandidate -or $ReleaseVersion -or
-        $CreateVersionTag
-    )
-}
-
-# ==============================================================================
-# Helper Functions: Git Queries, Cleanliness & Tag Resolution
-# ==============================================================================
-
-function Get-MostRecentTag {
-    $tag = git describe --tags --abbrev=0 2>$null
-    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($tag)) {
-        return $tag.Trim()
-    }
-    return $null
-}
-
-function Test-GitTagExists {
-    param ([string]$Tag)
-    if ([string]::IsNullOrWhiteSpace($Tag)) { return $false }
-    $found = git tag -l $Tag.Trim() 2>$null
-    return ($found -and ($found -contains $Tag.Trim() -or $found -eq $Tag.Trim()))
-}
-
-function Test-ValidGitTagName {
-    param ([string]$Tag)
-    if ([string]::IsNullOrWhiteSpace($Tag)) { return $false }
-    $trimmed = $Tag.Trim()
-    if ($trimmed -match '^-') { return $false }
-    git check-ref-format --allow-onelevel $trimmed 2>&1 | Out-Null
-    return ($LASTEXITCODE -eq 0)
-}
-
-function Resolve-TagCollision {
-    param (
-        [string]$TagName,
-        [switch]$NonInteractive
-    )
-
-    $currentTag = $TagName
-    while (Test-GitTagExists -Tag $currentTag) {
-        Write-Host ""
-        Write-Host -ForegroundColor Yellow "Tag Collision: Git tag '$currentTag' already exists in the repository."
-        if ($NonInteractive) {
-            Write-Host -ForegroundColor Red "Cannot resolve tag collision in non-interactive mode. Aborting."
-            return $null
-        }
-
-        Write-Host "Please select an option to resolve the collision:"
-        Write-Host "  (E) Edit the tag string manually"
-        Write-Host "  (T) Prepend 'test-' to the existing tag name ('test-$currentTag')"
-        Write-Host "  (Q) Quit the script and make no change (default)"
-        Write-Host -NoNewline -ForegroundColor Cyan "Select option [E/T/Q] (default: Q): "
-        $choice = Read-Host
-
-        if ([string]::IsNullOrWhiteSpace($choice) -or $choice -imatch '^\s*q(uit)?\s*$') {
-            return $null
-        }
-        elseif ($choice -imatch '^\s*t(est)?\s*$') {
-            $currentTag = "test-$currentTag"
-        }
-        elseif ($choice -imatch '^\s*e(dit)?\s*$') {
-            Write-Host -NoNewline -ForegroundColor Cyan "  Enter new tag name (press ENTER to cancel): "
-            $customInput = Read-Host
-            if ([string]::IsNullOrWhiteSpace($customInput)) {
-                return $null
-            }
-            $candidate = $customInput.Trim()
-            if (-not (Test-ValidGitTagName -Tag $candidate)) {
-                Write-Host -ForegroundColor Red "Error: '$candidate' is not a valid Git tag name."
-                continue
-            }
-            $currentTag = $candidate
-        }
-        else {
-            Write-Host -ForegroundColor Yellow "Unrecognized option '$choice'. Defaulting to Quit."
-            return $null
-        }
+    if (-not (Test-Path -Path (Join-Path $ProjectRoot "wails.json") -PathType Leaf)) {
+        throw "Could not locate project root (wails.json not found in '$ProjectRoot')."
     }
 
-    return $currentTag
-}
-
-function Get-GitBranchInfo {
-    param ([switch]$NoPush)
-
-    $currentBranch = (git branch --show-current 2>$null).Trim()
-    if ([string]::IsNullOrWhiteSpace($currentBranch)) {
-        $currentBranch = "HEAD (detached)"
+    if (-not (Get-Command "git" -ErrorAction SilentlyContinue)) {
+        throw "Git command-line utility ('git') is not installed or not in PATH."
     }
-    $canPush = (-not $NoPush) -and ($currentBranch -ne "HEAD (detached)")
 
-    return [PSCustomObject]@{
-        BranchName    = $currentBranch
-        CanPushBranch = $canPush
+    $insideWorkTree = git rev-parse --is-inside-work-tree 2>$null
+    if ($LASTEXITCODE -ne 0 -or $insideWorkTree.Trim() -ne "true") {
+        throw "The project directory '$ProjectRoot' is not a valid Git repository."
+    }
+
+    if (-not (Get-Command "npm" -ErrorAction SilentlyContinue)) {
+        throw "npm command-line utility was not found in PATH. Node.js/npm is required to sync package-lock.json."
+    }
+
+    if ($NeedAgy -and -not (Get-Command "agy" -ErrorAction SilentlyContinue)) {
+        throw "Antigravity CLI ('agy') was not found in PATH.`nPlease install agy or use -SkipChangelog to proceed without AI changelog generation."
     }
 }
 
 function Assert-GitWorkingTreeClean {
-    param ([switch]$IsDryRun)
+    $status = git status --porcelain 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to query Git working tree status."
+    }
 
-    $uncommitted = git status --porcelain=v1
-    if (-not [string]::IsNullOrWhiteSpace($uncommitted)) {
-        if ($IsDryRun) {
-            Write-Host ""
-            Write-Host -ForegroundColor Yellow "Warning: Working directory has uncommitted changes. A clean repository is required for live execution:"
-            $uncommitted -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object {
-                Write-Host -ForegroundColor Yellow "  $_"
-            }
-            Write-Host ""
-        }
-        else {
-            Write-Host ""
-            Write-Host -ForegroundColor Red "Error: Working directory has uncommitted changes. Repository must be clean before setting version or managing tags:"
-            Write-Host ""
-            $uncommitted -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object {
-                Write-Host -ForegroundColor Yellow "  $_"
-            }
-            Write-Host ""
-            Write-Host "Please commit, stash, or revert these changes before setting version or pushing tags."
-            exit 1
-        }
+    if (-not [string]::IsNullOrWhiteSpace($status)) {
+        Write-Host ""
+        Write-Host -ForegroundColor Red "ERROR: Git working tree contains uncommitted changes."
+        Write-Host -ForegroundColor Yellow "The release workflow requires a clean working tree so release commits remain atomic."
+        Write-Host ""
+        Write-Host -ForegroundColor White "Uncommitted files:"
+        $status.Trim() -split "`r?`n" | ForEach-Object { Write-Host -ForegroundColor DarkYellow "  $_" }
+        Write-Host ""
+        Write-Host -ForegroundColor Cyan "Please commit or stash your changes before running Set-Version.ps1."
+        Write-Host ""
+        throw "Git working tree is not clean."
     }
 }
 
 # ==============================================================================
-# Helper Functions: Version Parsing, Formatting & Calculations
+# Helper Functions: Version Parsing & Calculations
 # ==============================================================================
 
 function Get-CurrentVersionFromWails {
-    param ([string]$Path)
-    if (-not (Test-Path -Path $Path -PathType Leaf)) {
-        throw "Source of truth 'wails.json' not found at: $Path"
+    param([string]$ProjectRoot)
+    $wailsPath = Join-Path $ProjectRoot "wails.json"
+    if (-not (Test-Path -Path $wailsPath -PathType Leaf)) {
+        throw "Source of truth 'wails.json' not found at '$wailsPath'."
     }
-    $raw = Get-Content -Raw -Path $Path -Encoding utf8
-    try {
-        $json = $raw | ConvertFrom-Json
-        if ($json.info -and -not [string]::IsNullOrWhiteSpace($json.info.productVersion)) {
-            return $json.info.productVersion.Trim()
-        }
+    $raw = Get-Content -Raw -Path $wailsPath -Encoding utf8
+    $json = $raw | ConvertFrom-Json
+    if (-not $json.info -or [string]::IsNullOrWhiteSpace($json.info.productVersion)) {
+        throw "Could not determine 'info.productVersion' from wails.json."
     }
-    catch {
-        # Fallback to regex if ConvertFrom-Json fails
-    }
-
-    if ($raw -match '"productVersion"\s*:\s*"([^"]+)"') {
-        return $Matches[1].Trim()
-    }
-    throw "Could not determine 'productVersion' from source of truth: $Path"
+    return $json.info.productVersion.Trim()
 }
 
 function Parse-VersionString {
-    param ([string]$Tag)
+    param([string]$Tag)
     $clean = $Tag.Trim() -replace '^[vV]', ''
     $obj = [PSCustomObject]@{
-        Raw              = $Tag
-        Major            = 0
-        Minor            = 0
-        Patch            = 0
-        Prerelease       = $null
-        Stage            = $null
-        StageNum         = $null
-        StageDelimiter   = ""
-        HasBuildMetadata = $false
-        ValidationError  = $null
-        IsValid          = $false
+        Raw             = $Tag
+        Major           = 0
+        Minor           = 0
+        Patch           = 0
+        Prerelease      = $null
+        Stage           = $null
+        StageNum        = $null
+        ValidationError = $null
+        IsValid         = $false
     }
 
-    # Explicitly check for and disallow build metadata (+buildmetadata)
     if ($clean -match '\+') {
-        $obj.HasBuildMetadata = $true
-        $obj.ValidationError = "Build metadata ('+...') is not permitted in project versions for TextoVista/Windows compatibility."
+        $obj.ValidationError = "Build metadata ('+...') is not permitted in versions for Windows packaging compatibility."
         return $obj
     }
 
-    # Match core SemVer X.Y.Z with optional prerelease
     if ($clean -notmatch '^(?<major>0|[1-9]\d*)\.(?<minor>0|[1-9]\d*)\.(?<patch>0|[1-9]\d*)(?:-(?<prerelease>.+))?$') {
-        $obj.ValidationError = "Version '$Tag' does not match semantic version format (expected 'X.Y.Z' or 'vX.Y.Z', e.g., '1.0.0' or 'v1.0.0-rc1')."
+        $obj.ValidationError = "Version '$Tag' does not match semantic version format (expected 'X.Y.Z' or 'vX.Y.Z', e.g. '0.8.0' or 'v0.7.3-rc1')."
         return $obj
     }
 
-    $obj.Major = [int]$Matches.major
-    $obj.Minor = [int]$Matches.minor
-    $obj.Patch = [int]$Matches.patch
+    $obj.Major = [int]$Matches['major']
+    $obj.Minor = [int]$Matches['minor']
+    $obj.Patch = [int]$Matches['patch']
 
-    # If no prerelease, valid full release version
-    if (-not $Matches.prerelease) {
+    if (-not $Matches.ContainsKey('prerelease') -or [string]::IsNullOrWhiteSpace($Matches['prerelease'])) {
         $obj.IsValid = $true
         return $obj
     }
 
-    $prerelease = $Matches.prerelease
-    # Allowed prerelease formats: alpha, beta, rc with optional . or - or empty delimiter and optional 0-999 number
-    if ($prerelease -notmatch '^(?<stage>alpha|beta|rc)(?:(?<delim>[.-])?(?<num>0|[1-9]\d*))?$') {
-        $obj.ValidationError = "Prerelease stage '$prerelease' is not permitted. Only 'alpha', 'beta', or 'rc' stages (e.g., '-alpha.1', '-alpha-1', '-beta2', '-rc1') with numbers 0-999 are allowed."
+    $prerelease = $Matches['prerelease']
+    # Allowed prerelease formats: alpha, beta, rc with optional sequence number (e.g., -alpha1, -beta2, -rc1)
+    if ($prerelease -notmatch '^(?<stage>alpha|beta|rc)(?:[.-]?(?<num>0|[1-9]\d*))?$') {
+        $obj.ValidationError = "Prerelease '$prerelease' is not permitted. Only 'alpha', 'beta', or 'rc' stages (e.g. '-alpha1', '-beta1', '-rc1') are allowed."
         return $obj
     }
 
-    $stage = $Matches.stage.ToLower()
-    $delim = if ($Matches.delim) { $Matches.delim } else { "" }
-    $num = if (-not [string]::IsNullOrWhiteSpace($Matches.num)) { [int]$Matches.num } else { 0 }
+    $stage = $Matches['stage'].ToLower()
+    $num = if ($Matches.ContainsKey('num') -and -not [string]::IsNullOrWhiteSpace($Matches['num'])) { [int]$Matches['num'] } else { 0 }
 
     if ($num -gt 999) {
-        $obj.ValidationError = "Prerelease number '$num' exceeds maximum allowed value of 999."
+        $obj.ValidationError = "Prerelease number '$num' exceeds maximum allowed sequence of 999."
         return $obj
     }
 
     $obj.Prerelease = $prerelease
     $obj.Stage = $stage
     $obj.StageNum = $num
-    $obj.StageDelimiter = $delim
     $obj.IsValid = $true
     return $obj
 }
 
 function Format-BuildVersions {
-    param ($vObj)
+    param($vObj)
     $semver = "$($vObj.Major).$($vObj.Minor).$($vObj.Patch)"
     if ($vObj.Prerelease) {
         $semver += "-$($vObj.Prerelease)"
     }
     $tagName = "v$semver"
+    $tagMessage = "Version $semver"
 
     # Windows 4-part numeric version: Major.Minor.Patch.Suffix
     # Final releases use fixed 65432 so they always compare as newer than any prerelease.
-    # Prereleases: alpha -> 1000 + n, beta -> 2000 + n, rc -> 3000 + n (where n is 0-999; defaults to 0 if omitted)
-    # Supports delimiter styles: -alphaN, -alpha.N, and -alpha-N
+    # Prereleases: alpha -> 1000 + n, beta -> 2000 + n, rc -> 3000 + n
     $stages = @('alpha', 'beta', 'rc')
     $fileVersionSuffix = 65432
     if ($vObj.Prerelease) {
@@ -544,12 +294,10 @@ function Format-BuildVersions {
             if ($stageIndex -gt 0) {
                 $num = if ($null -ne $vObj.StageNum) { [int]$vObj.StageNum } else { 0 }
                 $fileVersionSuffix = ($stageIndex * 1000) + $num
-            }
-            else {
+            } else {
                 $fileVersionSuffix = 1000
             }
-        }
-        else {
+        } else {
             $fileVersionSuffix = 1000
         }
     }
@@ -559,187 +307,445 @@ function Format-BuildVersions {
     return [PSCustomObject]@{
         SemVer      = $semver
         TagName     = $tagName
+        TagMessage  = $tagMessage
         FileVersion = $fileVersion
+        Major       = $vObj.Major
+        Minor       = $vObj.Minor
+        Patch       = $vObj.Patch
+        Prerelease  = $vObj.Prerelease
+        Stage       = $vObj.Stage
+        StageNum    = $vObj.StageNum
     }
-}
-
-function Get-DefaultTagMessage {
-    param (
-        [string]$TagName,
-        [string]$CustomMessage = ""
-    )
-
-    if (-not [string]::IsNullOrWhiteSpace($CustomMessage)) {
-        return $CustomMessage
-    }
-
-    $parsed = Parse-VersionString -Tag $TagName
-    if ($parsed.IsValid) {
-        $cleanVer = $TagName.Trim() -replace '^[vV]', ''
-        return "Version: $cleanVer"
-    }
-
-    return "Version: $TagName"
 }
 
 function Calculate-NextVersion {
-    param (
+    param(
         $CurrentObj,
-        [string]$ExplicitTag = "",
-        [string]$RequestedBump = "",
-        [string]$RequestedStage = "",
-        [switch]$IsRelease
+        [string]$ExplicitVersion = "",
+        [string]$BumpAction = ""
     )
 
-    if (-not [string]::IsNullOrWhiteSpace($ExplicitTag)) {
-        $parsed = Parse-VersionString -Tag $ExplicitTag
+    if (-not [string]::IsNullOrWhiteSpace($ExplicitVersion)) {
+        $parsed = Parse-VersionString -Tag $ExplicitVersion
         if (-not $parsed.IsValid) {
-            throw "Invalid explicit version/tag provided: '$ExplicitTag'. $($parsed.ValidationError)"
+            throw "Invalid explicit version provided: '$ExplicitVersion'. $($parsed.ValidationError)"
         }
-        return $parsed
+
+        # Check for major version jump warning
+        if ($parsed.Major -gt ($CurrentObj.Major + 1)) {
+            Write-Host ""
+            Write-Host -ForegroundColor Yellow "WARNING: Significant major version jump detected!"
+            Write-Host -ForegroundColor Yellow "  Current version:  $($CurrentObj.Major).$($CurrentObj.Minor).$($CurrentObj.Patch)"
+            Write-Host -ForegroundColor Yellow "  Proposed version: $($parsed.Major).$($parsed.Minor).$($parsed.Patch)"
+            Write-Host ""
+            $confirmJump = Read-Host "Are you sure you want to jump more than one major version? (y/N)"
+            if ($confirmJump -notmatch '^(y|yes)$') {
+                throw "Version bump aborted by user due to major version jump."
+            }
+        }
+
+        return (Format-BuildVersions -vObj $parsed)
     }
 
     $major = $CurrentObj.Major
     $minor = $CurrentObj.Minor
     $patch = $CurrentObj.Patch
     $prerelease = $null
-    $stageName = $null
+    $stage = $null
     $stageNum = $null
-    $delim = ""
 
-    # If -Release is requested, strip prerelease from current version
-    if ($IsRelease) {
-        return [PSCustomObject]@{
-            Major          = $major
-            Minor          = $minor
-            Patch          = $patch
-            Prerelease     = $null
-            Stage          = $null
-            StageNum       = $null
-            StageDelimiter = ""
-            IsValid        = $true
-        }
-    }
-
-    $effectiveBump = $RequestedBump
-    if ([string]::IsNullOrWhiteSpace($effectiveBump)) {
-        if ($RequestedStage) {
-            # If a prerelease stage was specified without an explicit bump:
-            # If current version is already stable, bump patch before applying prerelease stage
-            if (-not $CurrentObj.Prerelease) {
-                $effectiveBump = "Patch"
-            }
-        }
-        elseif ($CurrentObj.Prerelease) {
-            $effectiveBump = "Prerelease"
-        }
-        else {
-            $effectiveBump = "Patch"
-        }
-    }
-
-    switch ($effectiveBump) {
-        "Major" {
+    switch ($BumpAction.ToLower()) {
+        "major" {
             $major++
             $minor = 0
             $patch = 0
         }
-        "Minor" {
+        "minor" {
             $minor++
             $patch = 0
         }
-        "Patch" {
-            $patch++
-        }
-        "Prerelease" {
-            $delim = if ($CurrentObj.StageDelimiter) { $CurrentObj.StageDelimiter } else { "" }
-            if ($CurrentObj.Prerelease -and $CurrentObj.Stage) {
-                $stageName = if ($RequestedStage) { $RequestedStage.ToLower() } else { $CurrentObj.Stage }
-                $stageNum = if ($RequestedStage -and ($RequestedStage.ToLower() -ne $CurrentObj.Stage)) {
-                    1
-                }
-                else {
-                    $CurrentObj.StageNum + 1
-                }
-            }
-            else {
+        "patch" {
+            if ($CurrentObj.Prerelease) {
+                # In SemVer/uv, bumping patch on a prerelease promotes to the stable version
+                $patch = $CurrentObj.Patch
+            } else {
                 $patch++
-                $stageName = if ($RequestedStage) { $RequestedStage.ToLower() } else { "alpha" }
+            }
+        }
+        "stable" {
+            if (-not $CurrentObj.Prerelease) {
+                throw "Current version '$($CurrentObj.Major).$($CurrentObj.Minor).$($CurrentObj.Patch)' is already a stable release."
+            }
+            $patch = $CurrentObj.Patch
+        }
+        "alpha" {
+            if (-not $CurrentObj.Prerelease) {
+                $patch++
+                $stage = "alpha"
+                $stageNum = 1
+            } elseif ($CurrentObj.Stage -eq "alpha") {
+                $stage = "alpha"
+                $stageNum = if ($CurrentObj.StageNum) { $CurrentObj.StageNum + 1 } else { 1 }
+            } else {
+                $stage = "alpha"
                 $stageNum = 1
             }
-            if ($stageNum -gt 999) {
-                throw "Cannot increment prerelease version beyond 999 for stage '$stageName'."
+            $prerelease = "alpha$stageNum"
+        }
+        "beta" {
+            if (-not $CurrentObj.Prerelease) {
+                $patch++
+                $stage = "beta"
+                $stageNum = 1
+            } elseif ($CurrentObj.Stage -eq "beta") {
+                $stage = "beta"
+                $stageNum = if ($CurrentObj.StageNum) { $CurrentObj.StageNum + 1 } else { 1 }
+            } else {
+                $stage = "beta"
+                $stageNum = 1
             }
-            $prerelease = "${stageName}${delim}${stageNum}"
+            $prerelease = "beta$stageNum"
+        }
+        "rc" {
+            if (-not $CurrentObj.Prerelease) {
+                $patch++
+                $stage = "rc"
+                $stageNum = 1
+            } elseif ($CurrentObj.Stage -eq "rc") {
+                $stage = "rc"
+                $stageNum = if ($CurrentObj.StageNum) { $CurrentObj.StageNum + 1 } else { 1 }
+            } else {
+                $stage = "rc"
+                $stageNum = 1
+            }
+            $prerelease = "rc$stageNum"
+        }
+        default {
+            throw "Unknown bump action '$BumpAction'."
         }
     }
 
-    # If a specific stage was passed with Major/Minor/Patch
-    if ($RequestedStage -and ($effectiveBump -ne "Prerelease")) {
-        $stageName = $RequestedStage.ToLower()
-        $stageNum = 1
-        $delim = if ($CurrentObj.StageDelimiter) { $CurrentObj.StageDelimiter } else { "" }
-        $prerelease = "${stageName}${delim}${stageNum}"
+    $vObj = [PSCustomObject]@{
+        Major      = $major
+        Minor      = $minor
+        Patch      = $patch
+        Prerelease = $prerelease
+        Stage      = $stage
+        StageNum   = $stageNum
     }
+
+    return (Format-BuildVersions -vObj $vObj)
+}
+
+# ==============================================================================
+# Helper Functions: Git & Changelog Processing
+# ==============================================================================
+
+function Get-LatestSemanticVersionTag {
+    $tag = git describe --tags --match "v[0-9]*.[0-9]*.[0-9]*" --abbrev=0 2>$null
+    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($tag)) {
+        return $tag.Trim()
+    }
+    $allTags = git tag -l "v[0-9]*.[0-9]*.[0-9]*" --sort=-v:refname 2>$null
+    if ($LASTEXITCODE -eq 0 -and $allTags) {
+        $first = ($allTags | Select-Object -First 1)
+        if (-not [string]::IsNullOrWhiteSpace($first)) {
+            return $first.Trim()
+        }
+    }
+    return $null
+}
+
+function Get-GitCommitHistory {
+    param([string]$FromRef)
+
+    $logFormat = "commit %h%nAuthor: %an%nDate: %ad%nSubject: %s%nBody: %b%n"
+    $commitLog = git log "$FromRef..HEAD" --reverse --date=short --format=$logFormat 2>$null
+    $shortLog = git log "$FromRef..HEAD" --reverse --date=short --pretty=format:"- %h %s (%an, %ad)" 2>$null
+    $diffStat = git diff --stat "$FromRef..HEAD" 2>$null
 
     return [PSCustomObject]@{
-        Major          = $major
-        Minor          = $minor
-        Patch          = $patch
-        Prerelease     = $prerelease
-        Stage          = $stageName
-        StageNum       = $stageNum
-        StageDelimiter = $delim
-        IsValid        = $true
+        DetailedLog = ($commitLog -join "`n").Trim()
+        ShortLog    = ($shortLog -join "`n").Trim()
+        DiffStat    = ($diffStat -join "`n").Trim()
+        CommitCount = if ([string]::IsNullOrWhiteSpace($shortLog)) { 0 } else { @($shortLog).Count }
     }
 }
 
-# ==============================================================================
-# Helper Functions: File Update Engine
-# ==============================================================================
+function Get-ChangelogReferenceStyle {
+    param([string]$ChangelogPath)
+    if (-not (Test-Path -Path $ChangelogPath -PathType Leaf)) { return "" }
+    $lines = Get-Content -Path $ChangelogPath -Encoding utf8
+    $sampleLines = @()
+    $capturing = $false
+    $entryCount = 0
 
-function Test-TargetFilesExist {
-    param ([string]$BaseDir)
-    $allFound = $true
-    foreach ($target in $TargetFiles) {
-        $fullPath = Join-Path $BaseDir $target.RelPath
-        if (-not (Test-Path -Path $fullPath -PathType Leaf)) {
-            Write-Host -ForegroundColor Red "Missing target file: $fullPath"
-            $allFound = $false
+    foreach ($line in $lines) {
+        if ($line -match '^##\s+\[?(?:v)?\d+\.\d+\.\d+\]?') {
+            $entryCount++
+            if ($entryCount -gt 2) { break }
+            $capturing = $true
+        }
+        if ($capturing) {
+            if ($line -match '^\[.+\]:\s+https?://') { break }
+            $sampleLines += $line
         }
     }
-    return $allFound
+    return ($sampleLines -join "`n").Trim()
 }
 
-function Get-FileDiffPlan {
-    param (
-        [string]$BaseDir,
+function Get-CurrentUnreleasedContent {
+    param([string]$ChangelogPath)
+    if (-not (Test-Path -Path $ChangelogPath -PathType Leaf)) { return "" }
+    $lines = Get-Content -Path $ChangelogPath -Encoding utf8
+    $inUnreleased = $false
+    $unreleasedLines = @()
+
+    foreach ($line in $lines) {
+        if ($line -match '^##\s+\[?Unreleased\]?') {
+            $inUnreleased = $true
+            continue
+        }
+        if ($inUnreleased -and ($line -match '^##\s+' -or $line -match '^\[.+\]:\s+https?://')) {
+            break
+        }
+        if ($inUnreleased) {
+            $unreleasedLines += $line
+        }
+    }
+    return ($unreleasedLines -join "`n").Trim()
+}
+
+function Get-VersionAlertMarkdown {
+    param([string]$VersionString)
+    if ($VersionString -match '^v?(?<Major>\d+)\.(?<Minor>\d+)') {
+        $major = [int]$Matches['Major']
+        $minor = [int]$Matches['Minor']
+        if ($major -eq 0 -and $minor -eq 0) {
+            return @(
+                "> [!WARNING]",
+                "> This is still **Alpha** software! It is likely incomplete and may crash without warning. Use at your own risk!"
+            ) -join "`n"
+        } elseif ($major -eq 0 -and $minor -ge 1) {
+            return @(
+                "> [!WARNING]",
+                "> This is still **Beta** software! It should be functional for general usage but likely still has bugs, and development is still ongoing."
+            ) -join "`n"
+        }
+    }
+    return ""
+}
+
+function Format-UnreleasedContent {
+    param(
+        [string]$SummaryMarkdown,
+        [string]$AlertMarkdown
+    )
+    $text = $SummaryMarkdown.Trim()
+    # Strip any accidental alert callouts from the AI response
+    $text = [regex]::Replace($text, '(?ms)^\s*>\s*\[!WARNING\].*?(?=\r?\n\r?\n|\r?\n###|\Z)', '').Trim()
+
+    if ([string]::IsNullOrWhiteSpace($AlertMarkdown)) {
+        return $text
+    }
+
+    $categoryPattern = '(?m)^###\s+(?:Added|Changed|Deprecated|Removed|Fixed|Security|CHANGES)\b'
+    if ($text -match $categoryPattern) {
+        return [regex]::new($categoryPattern).Replace($text, "$AlertMarkdown`n`n`$0", 1)
+    } else {
+        return "$text`n`n$AlertMarkdown"
+    }
+}
+
+function Build-AgyChangelogPrompt {
+    param(
+        [string]$SinceTag,
+        [string]$TargetVersion,
+        [PSCustomObject]$GitData,
+        [string]$ReferenceStyle,
+        [string]$CurrentUnreleased
+    )
+
+    $prompt = @"
+You are an expert technical release notes writer.
+Your task is to summarize the recent changes in this repository into content for the '## [$TargetVersion]' release section of CHANGELOG.md adhering strictly to the Keep a Changelog (1.1.0) format.
+
+### REPOSITORY CHANGES:
+Baseline Tag:   $SinceTag
+Target Version: $TargetVersion
+Number of Commits: $($GitData.CommitCount)
+
+Commit Log:
+$($GitData.ShortLog)
+
+Detailed Commit History:
+$($GitData.DetailedLog)
+
+Diffstat Summary:
+$($GitData.DiffStat)
+"@
+
+    if (-not [string]::IsNullOrWhiteSpace($ReferenceStyle)) {
+        $prompt += @"
+
+### REFERENCE STYLE (from recent CHANGELOG.md entries in this project):
+$ReferenceStyle
+"@
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($CurrentUnreleased)) {
+        $prompt += @"
+
+### CURRENT NOTES IN ## [Unreleased] (incorporate any non-placeholder notes describing real changes):
+$CurrentUnreleased
+"@
+    }
+
+    $prompt += @"
+
+### OUTPUT REQUIREMENTS:
+1. Write 1 or 2 high-level narrative paragraphs summarizing the main achievements, improvements, fixes, or architectural updates.
+2. Group notable changes under standard Keep a Changelog (1.1.0) level-3 subheadings:
+   - ### Added (for new features or capabilities)
+   - ### Changed (for changes in existing functionality, rebrandings, updates, or refactorings)
+   - ### Deprecated (for soon-to-be removed features)
+   - ### Removed (for now removed features)
+   - ### Fixed (for any bug fixes)
+   - ### Security (in case of vulnerabilities)
+   Only include subheadings that have actual items.
+3. Under each subheader, provide concise, high-quality bullet points describing the changes.
+4. Do NOT use redundant prefixes like '- Add:', '- Fix:', '- Update:', '- Rebrand:', etc. in bullet items. The category subheader already conveys the type of change. Start bullet points directly with an action verb or noun.
+5. Keep bullet descriptions clear, professional, and directly focused on user-visible or architectural value.
+6. CRITICAL: Do NOT output any '> [!WARNING]' alert callout or section headers (e.g., '## [$TargetVersion]'). Stability warning alerts, section headers, and compare link definitions are handled automatically by the script.
+7. CRITICAL: Do NOT call any tools. Output ONLY pure markdown text without wrapping the entire response in backtick code fences (no ```markdown or ```).
+"@
+
+    return $prompt
+}
+
+function Invoke-AgyChangelogSummary {
+    param(
+        [string]$Prompt,
+        [string]$Model
+    )
+
+    $agyArgs = @("--print", $Prompt, "--disable-slash-commands")
+    if (-not [string]::IsNullOrWhiteSpace($Model)) {
+        $agyArgs += @("--model", $Model)
+    }
+
+    Write-Host -ForegroundColor Cyan "  Invoking Antigravity CLI (agy) to draft release notes..."
+    $response = & agy @agyArgs 2>&1
+    $exitCode = $LASTEXITCODE
+
+    if ($exitCode -ne 0) {
+        $errText = ($response -join "`n")
+        throw "Antigravity CLI failed with exit code $($exitCode):`n$errText"
+    }
+
+    $rawText = ($response -join "`n").Trim()
+    if ($rawText -match '^```(?:markdown)?\s*([\s\S]*?)\s*```$') {
+        $rawText = $Matches[1].Trim()
+    }
+
+    return $rawText
+}
+
+function Build-UpdatedChangelog {
+    param(
+        [string]$ChangelogPath,
+        [string]$ReleaseBody,
+        [string]$TargetSemVer,
+        [string]$TargetTagName,
+        [string]$LastTagName,
+        [string]$ReleaseDate
+    )
+
+    if (-not (Test-Path -Path $ChangelogPath -PathType Leaf)) {
+        throw "CHANGELOG.md file not found at '$ChangelogPath'."
+    }
+
+    $content = Get-Content -Path $ChangelogPath -Raw -Encoding utf8
+    $newReleaseBlock = "## [Unreleased]`n`n## [$TargetSemVer] - $ReleaseDate`n`n" + $ReleaseBody.Trim() + "`n`n"
+
+    $unreleasedPattern = '(?ms)^##\s+\[?Unreleased\]?\s*\r?\n.*?(?=^##\s+\[?(?:v)?\d+\.\d+\.\d+|^\[.+\]:\s+https?://|\Z)'
+    if ($content -match $unreleasedPattern) {
+        $newContent = [regex]::new($unreleasedPattern).Replace($content, [System.Text.RegularExpressions.MatchEvaluator]{ return $newReleaseBlock }, 1)
+    } else {
+        $firstVerPattern = '(?m)^##\s+\[?(?:v)?\d+\.\d+\.\d+'
+        if ($content -match $firstVerPattern) {
+            $newContent = [regex]::new($firstVerPattern).Replace($content, [System.Text.RegularExpressions.MatchEvaluator]{ return ($newReleaseBlock + $_.Value) }, 1)
+        } else {
+            $newContent = $content.TrimEnd() + "`n`n" + $newReleaseBlock
+        }
+    }
+
+    # Update comparison links at bottom
+    $repoUrl = "https://github.com/zmtcreative/TextoVista"
+    if ($newContent -match '(?m)^\[.+\]:\s*(https?://github\.com/[^/\s]+/[^/\s#?]+?)(?:/compare|/releases|$)') {
+        $repoUrl = ($Matches[1] -replace '\.git$', '').TrimEnd('/')
+    }
+
+    $unreleasedLink = "[Unreleased]: $repoUrl/compare/$TargetTagName...HEAD"
+    $newReleaseLink = if (-not [string]::IsNullOrWhiteSpace($LastTagName)) {
+        "[$TargetSemVer]: $repoUrl/compare/$LastTagName...$TargetTagName"
+    } else {
+        "[$TargetSemVer]: $repoUrl/releases/tag/$TargetTagName"
+    }
+    $combinedLinks = "$unreleasedLink`n$newReleaseLink"
+
+    $unreleasedLinkPattern = '(?m)^\[Unreleased\]:\s+https?://\S+'
+    $versionLinkPattern = '(?m)^\[\d+\.\d+\.\d+\]:\s+https?://\S+'
+
+    if ($newContent -match $unreleasedLinkPattern) {
+        $newContent = [regex]::new($unreleasedLinkPattern).Replace($newContent, $combinedLinks, 1)
+    } elseif ($newContent -match $versionLinkPattern) {
+        $newContent = [regex]::new($versionLinkPattern).Replace($newContent, "$combinedLinks`n`$0", 1)
+    } else {
+        $newContent = $newContent.TrimEnd() + "`n`n$combinedLinks`n"
+    }
+
+    return ($newContent.TrimEnd() + "`n")
+}
+
+# ==============================================================================
+# Helper Functions: In-Memory File Diff Planning
+# ==============================================================================
+
+function Get-TargetFileDiffs {
+    param(
+        [string]$ProjectRoot,
         [string]$SemVer,
         [string]$FileVersion
     )
-    $diffPlans = @()
 
-    foreach ($target in $TargetFiles) {
-        $fullPath = Join-Path $BaseDir $target.RelPath
+    $diffPlans = @()
+    foreach ($target in $script:TargetFilesConfig) {
+        $fullPath = Join-Path $ProjectRoot $target.RelPath
+        if (-not (Test-Path -Path $fullPath -PathType Leaf)) {
+            throw "Target file '$fullPath' was not found."
+        }
+
         $val = if ($target.Format -eq "SemVer") { $SemVer } else { $FileVersion }
         $content = Get-Content -Raw -Path $fullPath -Encoding utf8
         $newContent = $content
-        $lineDiffs = @()
 
         foreach ($rule in $target.Rules) {
             $repPattern = $rule.Replacement.Replace('{VALUE}', $val)
             $newContent = [regex]::Replace($newContent, $rule.Pattern, $repPattern)
         }
 
+        $lineDiffs = @()
         if ($newContent -ne $content) {
             $origLines = $content -split "`r?`n"
             $updLines = $newContent -split "`r?`n"
             for ($i = 0; $i -lt $origLines.Count; $i++) {
-                if ($origLines[$i] -ne $updLines[$i]) {
+                if ($i -ge $updLines.Count -or $origLines[$i] -ne $updLines[$i]) {
+                    $newVal = if ($i -lt $updLines.Count) { $updLines[$i] } else { "<deleted>" }
                     $lineDiffs += [PSCustomObject]@{
                         LineNumber = $i + 1
-                        Old        = $origLines[$i]
-                        New        = $updLines[$i]
+                        Old        = $origLines[$i].Trim()
+                        New        = $newVal.Trim()
                     }
                 }
             }
@@ -755,944 +761,295 @@ function Get-FileDiffPlan {
             Diffs      = $lineDiffs
         }
     }
+
     return $diffPlans
 }
 
-function Apply-FileUpdates {
-    param ($DiffPlans)
-    foreach ($plan in $DiffPlans) {
-        if ($plan.IsModified) {
-            Set-Content -Path $plan.FullPath -Value $plan.NewContent -Encoding utf8 -NoNewline
-            Write-Host -ForegroundColor Green "  Updated: $($plan.RelPath) -> $($plan.TargetVal)"
-        }
-        else {
-            Write-Host -ForegroundColor DarkGray "  No changes needed: $($plan.RelPath)"
-        }
+# ==============================================================================
+# Main Execution Flow
+# ==============================================================================
+
+try {
+    Write-Host ""
+    Write-Host -ForegroundColor Cyan "=================================================================="
+    Write-Host -ForegroundColor Cyan "           TextoVista - Release & Version Orchestrator            "
+    Write-Host -ForegroundColor Cyan "=================================================================="
+    Write-Host ""
+
+    # 1. Resolve Project Root
+    $projectRoot = (Resolve-Path $script:ScriptProjectRoot).Path
+    if ([string]::IsNullOrWhiteSpace($ChangelogPath)) {
+        $ChangelogPath = Join-Path $projectRoot "CHANGELOG.md"
     }
-}
+    $ChangelogPath = (Resolve-Path $ChangelogPath).Path
 
-function Sync-FrontendPackageLock {
-    param (
-        [string]$ProjectRoot
-    )
-
-    $frontendDir = Join-Path $ProjectRoot "frontend"
-    if (-not (Test-Path -Path $frontendDir -PathType Container)) {
-        Write-Host -ForegroundColor Red "Error: 'frontend' directory not found at: $frontendDir"
-        exit 1
-    }
-
-    $npmCmd = Get-Command "npm" -ErrorAction SilentlyContinue
-    if (-not $npmCmd) {
-        Write-Host -ForegroundColor Red "Error: 'npm' command not found in PATH. Node.js/npm is required to update package-lock.json."
-        exit 1
+    # 2. Check Prerequisites & Git State
+    Assert-Prerequisites -ProjectRoot $projectRoot -NeedAgy:(-not $SkipChangelog)
+    if (-not $AllowDirty) {
+        Assert-GitWorkingTreeClean
+    } else {
+        Write-Host -ForegroundColor Yellow "  Warning: -AllowDirty specified; skipping clean working tree validation."
     }
 
-    Write-Host -ForegroundColor Cyan "Syncing frontend/package-lock.json via 'npm i --package-lock-only'..."
-    Push-Location $frontendDir
-    try {
-        $npmOutput = & npm i --package-lock-only 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host -ForegroundColor Red "Error: 'npm i --package-lock-only' failed with exit code $LASTEXITCODE."
-            if ($npmOutput) {
-                $npmOutput | ForEach-Object { Write-Host -ForegroundColor Red "  $_" }
+    # 3. Extract Current Version from Source of Truth (wails.json)
+    $currentRawVersion = Get-CurrentVersionFromWails -ProjectRoot $projectRoot
+    $currentParsed = Parse-VersionString -Tag $currentRawVersion
+    if (-not $currentParsed.IsValid) {
+        throw "Current version in wails.json ('$currentRawVersion') is invalid: $($currentParsed.ValidationError)"
+    }
+    $currentVersionInfo = Format-BuildVersions -vObj $currentParsed
+
+    # 4. Calculate Target Version
+    $targetVersionInfo = Calculate-NextVersion `
+        -CurrentObj $currentVersionInfo `
+        -ExplicitVersion $Version `
+        -BumpAction $Bump
+
+    # Check for Git Tag Collision
+    $existingTag = git tag -l $targetVersionInfo.TagName 2>$null
+    if ($existingTag) {
+        throw "Git tag '$($targetVersionInfo.TagName)' already exists locally. Cannot release duplicate version."
+    }
+
+    Write-Host -ForegroundColor Green "  Current Version:  " -NoNewline
+    Write-Host -ForegroundColor Yellow "$($currentVersionInfo.SemVer) ($($currentVersionInfo.TagName))"
+    Write-Host -ForegroundColor Green "  Target Version:   " -NoNewline
+    Write-Host -ForegroundColor Yellow "$($targetVersionInfo.SemVer) ($($targetVersionInfo.TagName))"
+    Write-Host -ForegroundColor Green "  Windows Version:  " -NoNewline
+    Write-Host -ForegroundColor Yellow "$($targetVersionInfo.FileVersion)"
+    Write-Host ""
+
+    # 5. Query Commits Since Baseline Tag
+    $lastTag = Get-LatestSemanticVersionTag
+    $baselineTag = if (-not [string]::IsNullOrWhiteSpace($lastTag)) { $lastTag } else { "" }
+
+    Write-Host -ForegroundColor Cyan "  Querying Git history since '$baselineTag'..."
+    $gitData = Get-GitCommitHistory -FromRef $baselineTag
+
+    Write-Host -ForegroundColor Green "  Commits found:    " -NoNewline
+    Write-Host -ForegroundColor Yellow "$($gitData.CommitCount)"
+    Write-Host ""
+
+    if ($gitData.CommitCount -eq 0) {
+        Write-Host -ForegroundColor Yellow "Notice: No new commits found between '$baselineTag' and HEAD."
+        if (-not $NonInteractive) {
+            $proceedZero = Read-Host "Do you want to proceed with the release anyway? (y/N) [Default: N]"
+            if ($proceedZero -notmatch '^(y|yes)$') {
+                Write-Host ""
+                Write-Host -ForegroundColor Yellow "Release aborted by user: no new commits to release."
+                Write-Host ""
+                exit 0
             }
-            exit 1
         }
-        Write-Host -ForegroundColor Green "  frontend/package-lock.json synced successfully."
     }
-    catch {
-        Write-Host -ForegroundColor Red "Error executing 'npm i --package-lock-only': $_"
-        exit 1
+
+    # 6. Draft Release Notes (In-Memory)
+    $todayDate = (Get-Date).ToString("yyyy-MM-dd")
+    $alertMarkdown = Get-VersionAlertMarkdown -VersionString $targetVersionInfo.SemVer
+    $releaseNotesBody = ""
+
+    if (-not $SkipChangelog) {
+        $referenceStyle = Get-ChangelogReferenceStyle -ChangelogPath $ChangelogPath
+        $currentUnreleased = Get-CurrentUnreleasedContent -ChangelogPath $ChangelogPath
+
+        $prompt = Build-AgyChangelogPrompt `
+            -SinceTag $baselineTag `
+            -TargetVersion $targetVersionInfo.SemVer `
+            -GitData $gitData `
+            -ReferenceStyle $referenceStyle `
+            -CurrentUnreleased $currentUnreleased
+
+        if ($ShowPrompt) {
+            Write-Host -ForegroundColor DarkCyan "---------------------- [AGY PROMPT] ----------------------"
+            Write-Host $prompt
+            Write-Host -ForegroundColor DarkCyan "----------------------------------------------------------"
+            Write-Host ""
+        }
+
+        $summaryRaw = Invoke-AgyChangelogSummary -Prompt $prompt -Model $Model
+        if ([string]::IsNullOrWhiteSpace($summaryRaw)) {
+            throw "Antigravity CLI returned empty release notes."
+        }
+
+        $releaseNotesBody = Format-UnreleasedContent -SummaryMarkdown $summaryRaw -AlertMarkdown $alertMarkdown
+    } else {
+        $currentUnreleased = Get-CurrentUnreleasedContent -ChangelogPath $ChangelogPath
+        if (-not [string]::IsNullOrWhiteSpace($currentUnreleased)) {
+            $releaseNotesBody = Format-UnreleasedContent -SummaryMarkdown $currentUnreleased -AlertMarkdown $alertMarkdown
+        } else {
+            $releaseNotesBody = "$alertMarkdown`n`n### Changed`n`n- Maintenance and version bump to $($targetVersionInfo.SemVer)."
+        }
     }
-    finally {
+
+    # 7. Plan In-Memory Diffs for Target Files & CHANGELOG.md
+    $diffPlans = Get-TargetFileDiffs `
+        -ProjectRoot $projectRoot `
+        -SemVer $targetVersionInfo.SemVer `
+        -FileVersion $targetVersionInfo.FileVersion
+
+    $updatedChangelogContent = Build-UpdatedChangelog `
+        -ChangelogPath $ChangelogPath `
+        -ReleaseBody $releaseNotesBody `
+        -TargetSemVer $targetVersionInfo.SemVer `
+        -TargetTagName $targetVersionInfo.TagName `
+        -LastTagName $baselineTag `
+        -ReleaseDate $todayDate
+
+    $commitMessage = "chore(release): bump version to $($targetVersionInfo.SemVer)"
+
+    # 8. Unified Release Review Display
+    Write-Host ""
+    Write-Host -ForegroundColor Cyan "=================================================================="
+    Write-Host -ForegroundColor Cyan "                 TextoVista - Release Preview                     "
+    Write-Host -ForegroundColor Cyan "=================================================================="
+    Write-Host ""
+    Write-Host -ForegroundColor White "  Release Version: " -NoNewline
+    Write-Host -ForegroundColor Green "$($targetVersionInfo.SemVer) ($($targetVersionInfo.TagName))"
+    Write-Host -ForegroundColor White "  Windows Version: " -NoNewline
+    Write-Host -ForegroundColor Green "$($targetVersionInfo.FileVersion)"
+    Write-Host -ForegroundColor White "  Git Commit:      " -NoNewline
+    Write-Host -ForegroundColor Yellow "$commitMessage"
+    Write-Host -ForegroundColor White "  Git Tag:         " -NoNewline
+    Write-Host -ForegroundColor Yellow "$($targetVersionInfo.TagName) (Message: `"$($targetVersionInfo.TagMessage)`")"
+    Write-Host ""
+
+    Write-Host -ForegroundColor DarkCyan "-------------------- [CHANGELOG ENTRY PREVIEW] --------------------"
+    Write-Host -ForegroundColor White "## [$($targetVersionInfo.SemVer)] - $todayDate"
+    Write-Host ""
+    Write-Host $releaseNotesBody
+    Write-Host -ForegroundColor DarkCyan "------------------------------------------------------------------"
+    Write-Host ""
+
+    Write-Host -ForegroundColor DarkCyan "------------------------ [FILES TO UPDATE] -----------------------"
+    foreach ($plan in $diffPlans) {
+        Write-Host -ForegroundColor Green "  [~] $($plan.RelPath)"
+        foreach ($d in $plan.Diffs) {
+            Write-Host -ForegroundColor DarkGray "      Line $($d.LineNumber): $($d.Old) -> $($d.New)"
+        }
+    }
+    Write-Host -ForegroundColor Green "  [~] frontend/package-lock.json (synced via 'npm i --package-lock-only')"
+    Write-Host -ForegroundColor Green "  [~] CHANGELOG.md"
+    Write-Host -ForegroundColor DarkCyan "------------------------------------------------------------------"
+    Write-Host ""
+
+    # 9. WhatIf Check
+    if ($PSCmdlet.ShouldProcess($targetVersionInfo.TagName, "Release version and tag")) {
+        # Continue to interactive prompt
+    } else {
+        Write-Host -ForegroundColor Yellow "WhatIf (-WhatIf) active: No changes were applied, committed, or tagged."
+        Write-Host ""
+        exit 0
+    }
+
+    # 10. Confirmation Prompt (Atomic Approval)
+    if (-not $NonInteractive) {
+        $confirm = Read-Host "Do you want to apply these updates, commit, and create tag $($targetVersionInfo.TagName)? (y/N)"
+        if ($confirm -notmatch '^(y|yes)$') {
+            Write-Host ""
+            Write-Host -ForegroundColor Yellow "Operation cancelled by user."
+            Write-Host -ForegroundColor Yellow "ZERO files were modified, and no Git commits or tags were created."
+            Write-Host ""
+            exit 0
+        }
+    }
+
+    # 11. Atomic Execution: Apply Updates to Disk
+    Write-Host ""
+    Write-Host -ForegroundColor Cyan "  Applying version updates to project files..."
+    foreach ($plan in $diffPlans) {
+        Set-Content -Path $plan.FullPath -Value $plan.NewContent -Encoding utf8 -NoNewline
+        Write-Host -ForegroundColor Green "    Updated: $($plan.RelPath)"
+    }
+
+    # Sync package-lock.json
+    Write-Host -ForegroundColor Cyan "  Syncing frontend/package-lock.json..."
+    Push-Location (Join-Path $projectRoot "frontend")
+    try {
+        $npmOut = & npm i --package-lock-only 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "npm i --package-lock-only failed with exit code $($LASTEXITCODE):`n$npmOut"
+        }
+        Write-Host -ForegroundColor Green "    Updated: frontend/package-lock.json"
+    } finally {
         Pop-Location
     }
-}
 
-# ==============================================================================
-# Helper Functions: Reporting & Display
-# ==============================================================================
+    # Write CHANGELOG.md
+    Write-Host -ForegroundColor Cyan "  Updating CHANGELOG.md..."
+    [System.IO.File]::WriteAllText($ChangelogPath, $updatedChangelogContent, [System.Text.UTF8Encoding]::new($false))
+    Write-Host -ForegroundColor Green "    Updated: CHANGELOG.md"
 
-function Show-VersionInformation {
-    param (
-        $CurrentFormatted,
-        [string]$MostRecentGitTag,
-        [string]$ProjectRoot,
-        $TargetFiles
+    # 12. Git Commit (Single Atomic Release Commit)
+    Write-Host -ForegroundColor Cyan "  Staging and creating release commit..."
+    $filesToStage = @(
+        "wails.json",
+        "frontend/package.json",
+        "frontend/package-lock.json",
+        "build/windows/info.json",
+        "build/windows/installer/project.nsi",
+        "CHANGELOG.md"
     )
+    git add @filesToStage 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to stage release files in Git."
+    }
 
+    git commit -m $commitMessage 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to create release commit in Git."
+    }
+    Write-Host -ForegroundColor Green "    Committed: $commitMessage"
+
+    # 13. Create Annotated Git Tag
+    Write-Host -ForegroundColor Cyan "  Creating annotated Git tag '$($targetVersionInfo.TagName)'..."
+    git tag -a $targetVersionInfo.TagName -m $targetVersionInfo.TagMessage 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to create Git tag '$($targetVersionInfo.TagName)'."
+    }
+    Write-Host -ForegroundColor Green "    Tagged: $($targetVersionInfo.TagName)"
     Write-Host ""
-    Write-Host -ForegroundColor Cyan "TextoVista Version Information:"
-    Write-Host -NoNewline "  Source of Truth (wails.json) : "; Write-Host -ForegroundColor Green "$($CurrentFormatted.SemVer)"
-    Write-Host -NoNewline "  Windows File Version         : "; Write-Host -ForegroundColor Green "$($CurrentFormatted.FileVersion)"
-    if ($MostRecentGitTag) {
-        Write-Host -NoNewline "  Most Recent Git Tag          : "; Write-Host -ForegroundColor Cyan "$MostRecentGitTag"
-    }
-    else {
-        Write-Host -NoNewline "  Most Recent Git Tag          : "; Write-Host -ForegroundColor Yellow "No tags found"
-    }
-
-    $uncommittedCheck = git status --porcelain=v1
-    Write-Host -NoNewline "  Working Tree Status          : "
-    if ([string]::IsNullOrWhiteSpace($uncommittedCheck)) {
-        Write-Host -ForegroundColor Green "Clean"
-    }
-    else {
-        $dirtyCount = ($uncommittedCheck -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count
-        Write-Host -ForegroundColor Yellow "Dirty ($dirtyCount uncommitted change(s))"
-    }
-
-    Write-Host ""
-    Write-Host -ForegroundColor Cyan "Target Files Status:"
-    foreach ($target in $TargetFiles) {
-        $p = Join-Path $ProjectRoot $target.RelPath
-        $exists = Test-Path -Path $p
-        $status = if ($exists) { "Found" } else { "Missing" }
-        $color = if ($exists) { "Green" } else { "Red" }
-        Write-Host -NoNewline "  $($target.RelPath.PadRight(40)) ["
-        Write-Host -NoNewline -ForegroundColor $color $status
-        Write-Host "]"
-    }
-    Write-Host ""
-}
-
-function Show-PlannedOperations {
-    param (
-        $CurrentFormatted,
-        [string]$MostRecentGitTag,
-        [string]$NewSemVer,
-        [string]$NewFileVer,
-        [string]$FinalCommitMessage,
-        [string]$CurrentBranch,
-        [bool]$NoPush,
-        [bool]$CreateVersionTag,
-        [string]$ProposedTagName,
-        [string]$FinalTagMessage,
-        [bool]$PushTag,
-        [bool]$CurrentVersion,
-        $DiffPlans
-    )
-
-    Write-Host ""
-    Write-Host -ForegroundColor Cyan "=========================================================="
-    if ($CurrentVersion) {
-        Write-Host -ForegroundColor Cyan "             TextoVista Version Tag Plan                  "
-    }
-    else {
-        Write-Host -ForegroundColor Cyan "             TextoVista Version Bump Plan                 "
-    }
-    Write-Host -ForegroundColor Cyan "=========================================================="
-    Write-Host "  Source of Truth (wails.json) : $($CurrentFormatted.SemVer) (Win: $($CurrentFormatted.FileVersion))"
-    if ($MostRecentGitTag) {
-        Write-Host "  Most Recent Git Tag          : $MostRecentGitTag"
-    }
-
-    if ($CurrentVersion) {
-        Write-Host -NoNewline "  Target Version               : "; Write-Host -ForegroundColor Green "$NewSemVer (Existing version unchanged)"
-        Write-Host "  Version Bump Operations      : Skipped (-CurrentVersion specified; project files will not be modified)"
-    }
-    else {
-        Write-Host -NoNewline "  Target Version               : "; Write-Host -ForegroundColor Green "$NewSemVer (Win: $NewFileVer)"
-        Write-Host -NoNewline "  Commit Message               : "; Write-Host -ForegroundColor Yellow "$FinalCommitMessage"
-        Write-Host -NoNewline "  Git Branch                   : "; Write-Host "$CurrentBranch"
-        Write-Host -NoNewline "  Lockfile Sync                : "; Write-Host -ForegroundColor Cyan "npm i --package-lock-only (in frontend/)"
-        Write-Host -NoNewline "  Push Commit to Remote        : "
-        if ($NoPush) {
-            Write-Host -ForegroundColor Yellow "No (-NoPush specified: Local commit only)"
-        }
-        elseif ($CurrentBranch -eq "HEAD (detached)") {
-            Write-Host -ForegroundColor Yellow "No (Detached HEAD: Local commit only)"
-        }
-        else {
-            Write-Host -ForegroundColor Green "Yes (origin/$CurrentBranch)"
-        }
-    }
-
-    Write-Host -NoNewline "  Create Git Tag Locally       : "
-    if ($CreateVersionTag) {
-        Write-Host -ForegroundColor Green "Yes (-CreateVersionTag specified: Proposed tag '$ProposedTagName')"
-    }
-    else {
-        Write-Host -ForegroundColor DarkGray "No (Default: tag will not be created)"
-    }
-    if ($CreateVersionTag) {
-        Write-Host -NoNewline "  Tag Message                  : "; Write-Host -ForegroundColor Yellow "$FinalTagMessage"
-    }
-
-    Write-Host -NoNewline "  Push Git Tag to Remote       : "
-    if ($PushTag) {
-        Write-Host -ForegroundColor Green "Yes (-PushTag specified)"
-    }
-    else {
-        Write-Host -ForegroundColor DarkGray "No (Local tag only if created)"
-    }
-
-    if (-not $CurrentVersion) {
-        Write-Host ""
-        Write-Host -ForegroundColor Cyan "Target File Diffs:"
-        foreach ($plan in $DiffPlans) {
-            if ($plan.IsModified) {
-                Write-Host "  File: $($plan.RelPath)" -ForegroundColor Magenta
-                foreach ($d in $plan.Diffs) {
-                    Write-Host "    - $($d.Old.Trim())" -ForegroundColor Red
-                    Write-Host "    + $($d.New.Trim())" -ForegroundColor Green
-                }
-            }
-            else {
-                Write-Host "  File: $($plan.RelPath) (already at target version)" -ForegroundColor DarkGray
-            }
-        }
-    }
-    Write-Host ""
-}
-
-function Show-DryRunPlan {
-    param (
-        [bool]$CurrentVersion,
-        $DiffPlans,
-        [string]$FinalCommitMessage,
-        [bool]$CanPushBranch,
-        [string]$CurrentBranch,
-        [bool]$CreateVersionTag,
-        [string]$ProposedTagName,
-        [string]$FinalTagMessage,
-        [bool]$PushTag,
-        [string]$MostRecentGitTag
-    )
-
-    Write-Host -ForegroundColor Yellow "[DryRun / WhatIf Mode] Simulation complete. No files or Git references modified."
-    Write-Host ""
-    Write-Host -ForegroundColor Cyan "Planned Git and build commands that would execute:"
-    if (-not $CurrentVersion) {
-        Write-Host "  (cd frontend && npm i --package-lock-only)"
-        $relFiles = @($DiffPlans | Where-Object { $_.IsModified } | ForEach-Object { $_.RelPath })
-        if (Test-Path "frontend/package-lock.json") {
-            $relFiles += "frontend/package-lock.json"
-        }
-        $relList = ($relFiles | Select-Object -Unique) -join " "
-        if (-not [string]::IsNullOrWhiteSpace($relList)) {
-            Write-Host "  git add $relList"
-            Write-Host "  git commit -m `"$FinalCommitMessage`""
-            if ($CanPushBranch) {
-                Write-Host "  git push origin $CurrentBranch"
-            }
-        }
-    }
-    if ($CreateVersionTag) {
-        Write-Host "  git tag -a `"$ProposedTagName`" -m `"$FinalTagMessage`""
-        if ($PushTag) {
-            Write-Host "  git push origin $ProposedTagName"
-        }
-    }
-    elseif ($PushTag -and $MostRecentGitTag) {
-        Write-Host "  git push origin $MostRecentGitTag (after user prompt)"
-    }
-    Write-Host ""
-}
-
-# ==============================================================================
-# Helper Functions: Interactive Prompts & Git Execution
-# ==============================================================================
-
-function Invoke-StandaloneTagPush {
-    param (
-        [string]$MostRecentTag,
-        [switch]$IsDryRun,
-        [switch]$NonInteractive
-    )
-
-    Write-Host ""
-    Write-Host -ForegroundColor Cyan "=========================================================="
-    Write-Host -ForegroundColor Cyan "             TextoVista Remote Tag Push                   "
-    Write-Host -ForegroundColor Cyan "=========================================================="
-    if (-not $MostRecentTag) {
-        Write-Host -ForegroundColor Red "Error: No Git tags found in the repository to push."
-        exit 1
-    }
-
-    Write-Host -NoNewline "  Most Recent Git Tag : "; Write-Host -ForegroundColor Green "$MostRecentTag"
-    Write-Host -NoNewline "  Action              : "; Write-Host -ForegroundColor Yellow "Push existing tag '$MostRecentTag' to remote 'origin'"
+    Write-Host -ForegroundColor Green "SUCCESS: Version $($targetVersionInfo.SemVer) released and tagged locally!"
     Write-Host ""
 
-    if ($IsDryRun) {
-        Write-Host -ForegroundColor Yellow "[DryRun / WhatIf Mode] Simulation complete."
-        Write-Host -ForegroundColor Cyan "Planned Git command:"
-        Write-Host "  git push origin $MostRecentTag"
-        Write-Host ""
-        return
+    # 14. Remote Push Prompt
+    $currentBranch = (git branch --show-current 2>$null)
+    if ([string]::IsNullOrWhiteSpace($currentBranch)) {
+        $currentBranch = "main"
     }
 
-    $confirmedPush = $false
-    if ($NonInteractive) {
-        $confirmedPush = $true
-    }
-    else {
-        Write-Host -NoNewline -ForegroundColor Cyan "Push most recent tag '$MostRecentTag' to remote 'origin'? [Y]es / [N]o (default: Y): "
-        $resp = Read-Host
-        if ([string]::IsNullOrWhiteSpace($resp) -or $resp -imatch '^\s*y(es)?\s*$') {
-            $confirmedPush = $true
+    $pushApproved = $false
+    if (-not $NonInteractive) {
+        $confirmPush = Read-Host "Push branch '$currentBranch' and tag '$($targetVersionInfo.TagName)' to remote origin? (y/N)"
+        if ($confirmPush -match '^(y|yes)$') {
+            $pushApproved = $true
         }
     }
 
-    if ($confirmedPush) {
-        Write-Host -ForegroundColor Cyan "Pushing tag '$MostRecentTag' to remote 'origin'..."
-        git push origin "$MostRecentTag"
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host -ForegroundColor Red "Error: Failed to push tag '$MostRecentTag' to remote."
-            exit 1
-        }
-        Write-Host -ForegroundColor Green "Tag '$MostRecentTag' successfully pushed to remote!"
-    }
-    else {
-        Write-Host -ForegroundColor Yellow "Tag push cancelled by user."
-    }
-}
-
-function Confirm-VersionBumpPrompt {
-    param (
-        [string]$NewSemVer,
-        [string]$NewFileVer,
-        [string]$ProposedTagName,
-        [string]$FinalCommitMessage,
-        $DiffPlans,
-        [string]$ProjectRoot,
-        [switch]$NonInteractive
-    )
-
-    if ($NonInteractive) {
-        return [PSCustomObject]@{
-            Confirmed          = $true
-            NewSemVer          = $NewSemVer
-            NewFileVer         = $NewFileVer
-            ProposedTagName    = $ProposedTagName
-            FinalCommitMessage = $FinalCommitMessage
-            DiffPlans          = $DiffPlans
-        }
-    }
-
-    Write-Host -NoNewline -ForegroundColor Cyan "Apply version bump to '$NewSemVer', stage files, and commit? [Y]es / [N]o / [E]dit version or message (default: Y): "
-    $response = Read-Host
-    if ([string]::IsNullOrWhiteSpace($response) -or $response -imatch '^\s*y(es)?\s*$') {
-        return [PSCustomObject]@{
-            Confirmed          = $true
-            NewSemVer          = $NewSemVer
-            NewFileVer         = $NewFileVer
-            ProposedTagName    = $ProposedTagName
-            FinalCommitMessage = $FinalCommitMessage
-            DiffPlans          = $DiffPlans
-        }
-    }
-    elseif ($response -imatch '^\s*e(dit)?\s*$') {
-        $validVerEntered = $false
-        while (-not $validVerEntered) {
-            $customVer = Read-Host "  Enter version to set (press ENTER to keep '$NewSemVer', 'q' to abort)"
-            if ([string]::IsNullOrWhiteSpace($customVer)) {
-                $validVerEntered = $true
-                break
-            }
-            if ($customVer -imatch '^\s*q(uit)?\s*$') {
-                Write-Host -ForegroundColor Yellow "Operation cancelled by user. No changes made."
-                return $null
-            }
-            $updatedSemVer = $customVer.Trim() -replace '^[vV]', ''
-            $parsedCustom = Parse-VersionString -Tag $updatedSemVer
-            if ($parsedCustom.IsValid) {
-                $nextFormatted = Format-BuildVersions $parsedCustom
-                $NewSemVer = $nextFormatted.SemVer
-                $NewFileVer = $nextFormatted.FileVersion
-                $ProposedTagName = $nextFormatted.TagName
-                $DiffPlans = Get-FileDiffPlan -BaseDir $ProjectRoot -SemVer $NewSemVer -FileVersion $NewFileVer
-                $validVerEntered = $true
-            }
-            else {
-                if ($parsedCustom.HasBuildMetadata) {
-                    Write-Host ""
-                    Write-Host -ForegroundColor Yellow "Warning: Build metadata ('+...') is not permitted in project versions."
-                    Write-Host -ForegroundColor Yellow "TextoVista requires versions without build metadata for Windows installer compatibility."
-                }
-                else {
-                    Write-Host ""
-                    Write-Host -ForegroundColor Red "Error: $($parsedCustom.ValidationError)"
-                }
-            }
-        }
-        $customMsg = Read-Host "  Enter commit message (press ENTER to keep '$FinalCommitMessage')"
-        if (-not [string]::IsNullOrWhiteSpace($customMsg)) {
-            $FinalCommitMessage = $customMsg
-        }
-        Write-Host ""
-        Write-Host -ForegroundColor Cyan "Updated Target Version: $NewSemVer | Commit Message: $FinalCommitMessage"
-        $confirm2 = Read-Host "Proceed with these updated values? [Y/n]"
-        if ($confirm2 -inotmatch '^\s*(y(es)?|$)\s*$') {
-            Write-Host -ForegroundColor Yellow "Operation cancelled by user. No changes made."
-            return $null
-        }
-        return [PSCustomObject]@{
-            Confirmed          = $true
-            NewSemVer          = $NewSemVer
-            NewFileVer         = $NewFileVer
-            ProposedTagName    = $ProposedTagName
-            FinalCommitMessage = $FinalCommitMessage
-            DiffPlans          = $DiffPlans
-        }
-    }
-    else {
-        Write-Host -ForegroundColor Yellow "Operation cancelled by user. No changes made."
-        return $null
-    }
-}
-
-function Invoke-VersionBumpCommit {
-    param (
-        $DiffPlans,
-        [string]$CommitMessage,
-        [string]$CurrentBranch,
-        [bool]$CanPushBranch
-    )
-
-    Write-Host -ForegroundColor Cyan "Staging files in Git..."
-    $modifiedFiles = @($DiffPlans | Where-Object { $_.IsModified } | ForEach-Object { $_.RelPath })
-    $lockfilePath = "frontend/package-lock.json"
-    if (Test-Path -Path $lockfilePath -PathType Leaf) {
-        $lockfileStatus = git status --porcelain -- $lockfilePath 2>$null
-        if (-not [string]::IsNullOrWhiteSpace($lockfileStatus)) {
-            $modifiedFiles += $lockfilePath
-        }
-    }
-    $modifiedFiles = @($modifiedFiles | Select-Object -Unique)
-    if ($modifiedFiles.Count -gt 0) {
-        git add $modifiedFiles 2>&1 | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host -ForegroundColor Red "Error: Failed to stage files in Git."
-            exit 1
-        }
-
-        Write-Host -ForegroundColor Cyan "Committing changes: $CommitMessage"
-        git commit -m "$CommitMessage" 2>&1 | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host -ForegroundColor Red "Error: Failed to commit changes to Git."
-            exit 1
-        }
-        Write-Host -ForegroundColor Green "  Commit created successfully."
-
-        # Push Version Bump Commit to Remote
-        if ($CanPushBranch) {
-            Write-Host -ForegroundColor Cyan "Pushing version bump commit to remote 'origin/$CurrentBranch'..."
-            git push origin "$CurrentBranch" 2>&1 | Out-Null
-            if ($LASTEXITCODE -ne 0) {
-                Write-Host -ForegroundColor Yellow "Warning: Failed to push branch '$CurrentBranch' to remote. You may need to push manually."
-            }
-            else {
-                Write-Host -ForegroundColor Green "  Version bump commit pushed successfully to remote."
-            }
-        }
-        else {
-            Write-Host -ForegroundColor Yellow "  Skipped remote commit push (NoPush specified or detached HEAD)."
-        }
-    }
-    else {
-        Write-Host -ForegroundColor Yellow "  No file changes to commit (files already at target version)."
-    }
-}
-
-function Test-ChangelogEntry {
-    param (
-        [string]$ChangelogPath,
-        [string]$TagName
-    )
-
-    if (-not (Test-Path -Path $ChangelogPath -PathType Leaf)) {
-        return [PSCustomObject]@{
-            Exists     = $false
-            HasEntry   = $false
-            HasContent = $false
-            Message    = "CHANGELOG.md was not found at '$ChangelogPath'."
-        }
-    }
-
-    $lines = Get-Content -Path $ChangelogPath -Encoding utf8
-    $cleanVersion = $TagName -replace '^v', ''
-    $escapedVersion = [regex]::Escape($cleanVersion)
-    $headerRegex = "^##\s+\[?(?:v)?$escapedVersion\]?(\s+-\s+.*)?$"
-    $start = $null
-    $end = $lines.Count
-
-    for ($i = 0; $i -lt $lines.Count; $i++) {
-        if ($lines[$i] -match $headerRegex) {
-            $start = $i + 1
-            continue
-        }
-        if ($null -ne $start -and ($lines[$i] -match '^##\s+' -or $lines[$i] -match '^\[.+\]:\s+https?://')) {
-            $end = $i
-            break
-        }
-    }
-
-    if ($null -eq $start) {
-        return [PSCustomObject]@{
-            Exists     = $true
-            HasEntry   = $false
-            HasContent = $false
-            Message    = "No matching section header found for tag '$TagName' in CHANGELOG.md (expected header like '## [$cleanVersion] - YYYY-MM-DD')."
-        }
-    }
-
-    $bodyLines = if ($start -lt $end) { $lines[$start..($end - 1)] } else { @() }
-    $body = ($bodyLines -join "`n").Trim()
-
-    if ([string]::IsNullOrWhiteSpace($body)) {
-        return [PSCustomObject]@{
-            Exists     = $true
-            HasEntry   = $true
-            HasContent = $false
-            Message    = "Section header for tag '$TagName' was found in CHANGELOG.md, but contains no release notes content."
-        }
-    }
-
-    return [PSCustomObject]@{
-        Exists     = $true
-        HasEntry   = $true
-        HasContent = $true
-        Message    = "Valid release notes entry found for tag '$TagName'."
-    }
-}
-
-function Invoke-TagOperations {
-    param (
-        [bool]$CreateVersionTag,
-        [string]$ProposedTagName,
-        [string]$TagMessage,
-        [bool]$PushTag,
-        [switch]$NonInteractive,
-        [string]$ProjectRoot = ""
-    )
-
-    if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
-        $ProjectRoot = $script:ProjectRoot
-    }
-
-    $tagToApply = $ProposedTagName
-
-    if ($CreateVersionTag) {
-        $tagMessageToUse = Get-DefaultTagMessage -TagName $tagToApply -CustomMessage $TagMessage
-
-        # Prompt user to verify or change the proposed tag
-        $confirmedTag = $false
-        if ($NonInteractive) {
-            $confirmedTag = $true
-        }
-        else {
+    if ($pushApproved) {
+        Write-Host -ForegroundColor Cyan "  Pushing '$currentBranch' and tag '$($targetVersionInfo.TagName)' to remote..."
+        git push origin $currentBranch 2>&1 | Out-Host
+        git push origin $targetVersionInfo.TagName 2>&1 | Out-Host
+        if ($LASTEXITCODE -eq 0) {
             Write-Host ""
-            Write-Host -NoNewline -ForegroundColor Cyan "Create local Git tag '$ProposedTagName' (message: '$tagMessageToUse')? [Y]es / [N]o / [E]dit tag name (default: Y): "
-            $tagResp = Read-Host
-            if ([string]::IsNullOrWhiteSpace($tagResp) -or $tagResp -imatch '^\s*y(es)?\s*$') {
-                $confirmedTag = $true
-            }
-            elseif ($tagResp -imatch '^\s*e(dit)?\s*$') {
-                $validTagEntered = $false
-                while (-not $validTagEntered) {
-                    $customTagInput = Read-Host "  Enter tag name (press ENTER to keep '$ProposedTagName', 'q' to skip)"
-                    if ([string]::IsNullOrWhiteSpace($customTagInput)) {
-                        $validTagEntered = $true
-                        $confirmedTag = $true
-                        break
-                    }
-                    if ($customTagInput -imatch '^\s*q(uit)?\s*$') {
-                        Write-Host -ForegroundColor Yellow "Skipped Git tag creation."
-                        $confirmedTag = $false
-                        break
-                    }
-                    $candidateTag = $customTagInput.Trim()
-                    if (-not (Test-ValidGitTagName -Tag $candidateTag)) {
-                        Write-Host ""
-                        Write-Host -ForegroundColor Red "Error: '$candidateTag' is not a valid Git tag name (contains invalid characters or illegal format)."
-                        continue
-                    }
-
-                    $parsedTag = Parse-VersionString -Tag $candidateTag
-                    if ($parsedTag.IsValid) {
-                        $tagToApply = if ($candidateTag -match '^[vV]') { $candidateTag } else { "v$candidateTag" }
-                        $validTagEntered = $true
-                        $confirmedTag = $true
-                    }
-                    else {
-                        Write-Host ""
-                        if ($parsedTag.HasBuildMetadata) {
-                            Write-Host -ForegroundColor Yellow "Warning: Tag '$candidateTag' contains build metadata ('+...'), which does not match normal project SemVer format."
-                        }
-                        else {
-                            Write-Host -ForegroundColor Yellow "Warning: Tag '$candidateTag' does not match normal project SemVer format (e.g., 'vX.Y.Z' or 'vX.Y.Z-rc1')."
-                            if (-not [string]::IsNullOrWhiteSpace($parsedTag.ValidationError)) {
-                                Write-Host -ForegroundColor Yellow "  Details: $($parsedTag.ValidationError)"
-                            }
-                        }
-                        Write-Host -NoNewline -ForegroundColor Cyan "  Use non-SemVer tag '$candidateTag' anyway? [Y]es / [N]o (default: Y): "
-                        $useNonSemVer = Read-Host
-                        if ([string]::IsNullOrWhiteSpace($useNonSemVer) -or $useNonSemVer -imatch '^\s*y(es)?\s*$') {
-                            $tagToApply = $candidateTag
-                            $validTagEntered = $true
-                            $confirmedTag = $true
-                        }
-                        else {
-                            Write-Host -ForegroundColor Yellow "  Tag discarded. Please enter a new tag name."
-                        }
-                    }
-                }
-            }
-            else {
-                Write-Host -ForegroundColor Yellow "Skipped Git tag creation."
-            }
-        }
-
-        if ($confirmedTag) {
-            if (Test-GitTagExists -Tag $tagToApply) {
-                $resolvedTagCollision = Resolve-TagCollision -TagName $tagToApply -NonInteractive:$NonInteractive
-                if (-not $resolvedTagCollision) {
-                    Write-Host -ForegroundColor Yellow "Skipped Git tag creation due to unresolved tag collision."
-                    $confirmedTag = $false
-                }
-                else {
-                    $tagToApply = $resolvedTagCollision
-                }
-            }
-        }
-
-        if ($confirmedTag) {
-            # Check CHANGELOG.md for semantic version tags (vX.Y.Z or vX.Y.Z-prerelease)
-            $parsedTagForChangelog = Parse-VersionString -Tag $tagToApply
-            if ($parsedTagForChangelog.IsValid) {
-                $changelogFile = Join-Path $ProjectRoot "CHANGELOG.md"
-                $changelogCheck = Test-ChangelogEntry -ChangelogPath $changelogFile -TagName $tagToApply
-                if (-not ($changelogCheck.HasEntry -and $changelogCheck.HasContent)) {
-                    Write-Host ""
-                    Write-Host -ForegroundColor Red "ERROR: Cannot assign version tag '$tagToApply' because CHANGELOG.md is not up to date."
-                    Write-Host -ForegroundColor Yellow "  $($changelogCheck.Message)"
-                    Write-Host ""
-                    Write-Host -ForegroundColor Yellow "Please update CHANGELOG.md with release notes for '$tagToApply' and commit the change."
-                    Write-Host -ForegroundColor Cyan   "Once CHANGELOG.md is updated, you can create and push the version tag using:"
-                    if ($PushTag) {
-                        Write-Host -ForegroundColor Cyan "  ./scripts/Set-Version.ps1 -CreateVersionTag -CurrentVersion -PushTag"
-                    }
-                    else {
-                        Write-Host -ForegroundColor Cyan "  ./scripts/Set-Version.ps1 -CreateVersionTag -CurrentVersion"
-                    }
-                    Write-Host ""
-                    $confirmedTag = $false
-                }
-            }
-            else {
-                Write-Host -ForegroundColor Yellow "  Notice: Proposed tag '$tagToApply' does not use normal semantic 'vX.Y.Z' format; skipping CHANGELOG.md check."
-            }
-        }
-
-        if ($confirmedTag) {
-            $tagMessageToUse = Get-DefaultTagMessage -TagName $tagToApply -CustomMessage $TagMessage
-            Write-Host -ForegroundColor Cyan "Creating local Git tag: $tagToApply (message: '$tagMessageToUse')"
-            git tag -a "$tagToApply" -m "$tagMessageToUse" 2>&1 | Out-Null
-            if ($LASTEXITCODE -ne 0) {
-                Write-Host -ForegroundColor Red "Error: Failed to create Git tag '$tagToApply'."
-                exit 1
-            }
-            Write-Host -ForegroundColor Green "  Tag '$tagToApply' created locally."
-
-            # Check if tag should be pushed to remote
-            if ($PushTag) {
-                Write-Host -ForegroundColor Cyan "Pushing tag '$tagToApply' to remote 'origin'..."
-                git push origin "$tagToApply" 2>&1 | Out-Null
-                if ($LASTEXITCODE -ne 0) {
-                    Write-Host -ForegroundColor Yellow "Warning: Failed to push tag '$tagToApply' to remote. You may need to push manually."
-                }
-                else {
-                    Write-Host -ForegroundColor Green "  Tag '$tagToApply' pushed successfully to remote."
-                }
-            }
-            else {
-                Write-Host -ForegroundColor Yellow "  Tag '$tagToApply' exists locally only. (To push to remote, run: git push origin $tagToApply or rerun with -PushTag)."
-            }
-            return $true
-        }
-        else {
-            return $false
-        }
-    }
-    elseif ($PushTag) {
-        $latestTag = Get-MostRecentTag
-        Write-Host ""
-        if (-not $latestTag) {
-            Write-Host -ForegroundColor Yellow "Warning: -PushTag was requested without -CreateVersionTag, but no Git tags were found in repository."
-        }
-        else {
-            $confirmLatestPush = $false
-            if ($NonInteractive) {
-                $confirmLatestPush = $true
-            }
-            else {
-                Write-Host -NoNewline -ForegroundColor Cyan "Push most recent Git tag '$latestTag' to remote 'origin'? [Y]es / [N]o (default: Y): "
-                $pResp = Read-Host
-                if ([string]::IsNullOrWhiteSpace($pResp) -or $pResp -imatch '^\s*y(es)?\s*$') {
-                    $confirmLatestPush = $true
-                }
-            }
-
-            if ($confirmLatestPush) {
-                Write-Host -ForegroundColor Cyan "Pushing tag '$latestTag' to remote 'origin'..."
-                git push origin "$latestTag" 2>&1 | Out-Null
-                if ($LASTEXITCODE -ne 0) {
-                    Write-Host -ForegroundColor Yellow "Warning: Failed to push tag '$latestTag' to remote. You may need to push manually."
-                }
-                else {
-                    Write-Host -ForegroundColor Green "  Tag '$latestTag' pushed successfully to remote."
-                }
-            }
-            else {
-                Write-Host -ForegroundColor Yellow "Skipped remote tag push."
-            }
-        }
-    }
-}
-
-# ==============================================================================
-# Main Controller Logic
-# ==============================================================================
-
-Push-Location $ProjectRoot
-try {
-    $isDryRun = $DryRun -or $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('WhatIf')
-    $stage = Resolve-PrereleaseStage -Stage $PrereleaseStage -Alpha:$SetAlpha -Beta:$SetBeta -RC:$SetReleaseCandidate
-    $bumpAction = Resolve-BumpAction -Bump $Bump -Major:$IncrementMajor -Minor:$IncrementMinor -Patch:$IncrementPatch -Prerelease:$IncrementPrerelease
-
-    Assert-ParameterRules `
-        -CurrentVersion:$CurrentVersion `
-        -CreateVersionTag:$CreateVersionTag `
-        -NewVersion $NewVersion `
-        -Bump $Bump `
-        -IncrementMajor:$IncrementMajor `
-        -IncrementMinor:$IncrementMinor `
-        -IncrementPatch:$IncrementPatch `
-        -IncrementPrerelease:$IncrementPrerelease `
-        -PrereleaseStage $PrereleaseStage `
-        -SetAlpha:$SetAlpha `
-        -SetBeta:$SetBeta `
-        -SetReleaseCandidate:$SetReleaseCandidate `
-        -ReleaseVersion:$ReleaseVersion
-
-    $hasExplicitBumpInput = Test-ExplicitBumpInputSpecified `
-        -NewVersion $NewVersion `
-        -Bump $Bump `
-        -IncrementMajor:$IncrementMajor `
-        -IncrementMinor:$IncrementMinor `
-        -IncrementPatch:$IncrementPatch `
-        -IncrementPrerelease:$IncrementPrerelease `
-        -PrereleaseStage $PrereleaseStage `
-        -SetAlpha:$SetAlpha `
-        -SetBeta:$SetBeta `
-        -SetReleaseCandidate:$SetReleaseCandidate `
-        -ReleaseVersion:$ReleaseVersion `
-        -CreateVersionTag:$CreateVersionTag
-
-    # 0. Validate -NewVersion if specified
-    if (-not [string]::IsNullOrWhiteSpace($NewVersion)) {
-        $parsedExplicit = Parse-VersionString -Tag $NewVersion
-        while (-not $parsedExplicit.IsValid) {
-            if ($parsedExplicit.HasBuildMetadata) {
-                Write-Host ""
-                Write-Host -ForegroundColor Yellow "Warning: Build metadata ('+...') is not permitted in project versions."
-                Write-Host -ForegroundColor Yellow "TextoVista requires versions without build metadata for Windows installer compatibility."
-            }
-            else {
-                Write-Host ""
-                Write-Host -ForegroundColor Red "Error: $($parsedExplicit.ValidationError)"
-            }
-
-            if ($NonInteractive) {
-                Write-Host -ForegroundColor Red "Invalid explicit version '$NewVersion' in non-interactive mode. Aborting."
-                exit 1
-            }
-
-            Write-Host -NoNewline -ForegroundColor Cyan "Enter a valid semantic version (e.g., '1.0.0', '1.0.0-rc.1', or '1.0.0-rc-1', or press ENTER/'q' to abort): "
-            $promptVer = Read-Host
-            if ([string]::IsNullOrWhiteSpace($promptVer) -or $promptVer -imatch '^\s*q(uit)?\s*$') {
-                Write-Host -ForegroundColor Yellow "Operation cancelled by user. Aborting."
-                exit 1
-            }
-            $NewVersion = $promptVer.Trim()
-            $parsedExplicit = Parse-VersionString -Tag $NewVersion
-        }
-    }
-
-    # 1. Read Current Version from wails.json (Source of Truth)
-    $sourceVersionStr = Get-CurrentVersionFromWails -Path $WailsConfigPath
-    $currentObj = Parse-VersionString -Tag $sourceVersionStr
-    if (-not $currentObj.IsValid) {
-        Write-Host -ForegroundColor Red "Error: Failed to parse version '$sourceVersionStr' from $WailsConfigPath as valid SemVer: $($currentObj.ValidationError)"
-        exit 1
-    }
-    $currentFormatted = Format-BuildVersions $currentObj
-    $mostRecentGitTag = Get-MostRecentTag
-
-    # 2. Handle -ShowCurrentVersion
-    if ($ShowCurrentVersion) {
-        Show-VersionInformation `
-            -CurrentFormatted $currentFormatted `
-            -MostRecentGitTag $mostRecentGitTag `
-            -ProjectRoot $ProjectRoot `
-            -TargetFiles $TargetFiles
-        return
-    }
-
-    # 3. Verify working tree is clean (no uncommitted changes allowed)
-    Assert-GitWorkingTreeClean -IsDryRun:$isDryRun
-
-    # 4. Handle Standalone -PushTag Mode
-    if ($PushTag -and (-not $CreateVersionTag) -and (-not $hasExplicitBumpInput)) {
-        Invoke-StandaloneTagPush `
-            -MostRecentTag $mostRecentGitTag `
-            -IsDryRun:$isDryRun `
-            -NonInteractive:$NonInteractive
-        return
-    }
-
-    # 5. Verify all target files exist
-    if (-not (Test-TargetFilesExist -BaseDir $ProjectRoot)) {
-        Write-Host -ForegroundColor Red "Aborting: One or more target files are missing."
-        exit 1
-    }
-
-    if ((-not $CurrentVersion) -and (-not (Get-Command "npm" -ErrorAction SilentlyContinue))) {
-        Write-Host -ForegroundColor Red "Error: 'npm' command not found in PATH. Node.js/npm is required to sync frontend/package-lock.json."
-        exit 1
-    }
-
-    # 6. Calculate target version using wails.json version as baseline
-    if ($CurrentVersion) {
-        $nextObj = $currentObj
-    }
-    else {
-        $nextObj = Calculate-NextVersion `
-            -CurrentObj $currentObj `
-            -ExplicitTag $NewVersion `
-            -RequestedBump $bumpAction `
-            -RequestedStage $stage `
-            -IsRelease:($ReleaseVersion -eq $true)
-    }
-
-    $nextFormatted = Format-BuildVersions $nextObj
-    $newSemVer = $nextFormatted.SemVer
-    $newFileVer = $nextFormatted.FileVersion
-    $proposedTagName = $nextFormatted.TagName
-
-    # 7. Check if proposed tag already exists when -CreateVersionTag is specified
-    if ($CreateVersionTag -and (Test-GitTagExists -Tag $proposedTagName)) {
-        $resolvedTag = Resolve-TagCollision -TagName $proposedTagName -NonInteractive:$NonInteractive
-        if (-not $resolvedTag) {
+            Write-Host -ForegroundColor Green "SUCCESS: Release and tag successfully pushed to remote!"
             Write-Host ""
-            Write-Host -ForegroundColor Yellow "Tag collision unresolved. Operation cancelled by user. No changes made."
-            return
+        } else {
+            Write-Host ""
+            Write-Host -ForegroundColor Yellow "Notice: Git push encountered an issue. Please verify remote connectivity and push manually:"
+            Write-Host -ForegroundColor Cyan   "  git push origin $currentBranch && git push origin $($targetVersionInfo.TagName)"
+            Write-Host ""
         }
-        $proposedTagName = $resolvedTag
-        Write-Host -ForegroundColor Green "Resolved tag name to apply: '$proposedTagName'"
+    } else {
+        Write-Host ""
+        Write-Host -ForegroundColor Yellow "Notice: Release committed and tagged locally, but not pushed to remote."
+        Write-Host -ForegroundColor Cyan   "When ready, push using:"
+        Write-Host -ForegroundColor White  "  git push origin $currentBranch && git push origin $($targetVersionInfo.TagName)"
+        Write-Host ""
     }
-
-    # 8. Prepare commit message and tag message
-    $finalCommitMessage = if ([string]::IsNullOrWhiteSpace($Message)) {
-        "chore(release): bump version to $newSemVer"
-    }
-    else {
-        $Message
-    }
-
-    $finalTagMessage = Get-DefaultTagMessage -TagName $proposedTagName -CustomMessage $TagMessage
-
-    # 9. Check current branch and push capability
-    $branchInfo = Get-GitBranchInfo -NoPush:$NoPush
-
-    # 10. Compute file diff plan
-    $diffPlans = Get-FileDiffPlan -BaseDir $ProjectRoot -SemVer $newSemVer -FileVersion $newFileVer
-
-    # 11. Display Planned Operations Summary
-    Show-PlannedOperations `
-        -CurrentFormatted $currentFormatted `
-        -MostRecentGitTag $mostRecentGitTag `
-        -NewSemVer $newSemVer `
-        -NewFileVer $newFileVer `
-        -FinalCommitMessage $finalCommitMessage `
-        -CurrentBranch $branchInfo.BranchName `
-        -NoPush:$NoPush `
-        -CreateVersionTag:$CreateVersionTag `
-        -ProposedTagName $proposedTagName `
-        -FinalTagMessage $finalTagMessage `
-        -PushTag:$PushTag `
-        -CurrentVersion:$CurrentVersion `
-        -DiffPlans $diffPlans
-
-    # 12. Handle -WhatIf / -DryRun
-    if ($isDryRun) {
-        Show-DryRunPlan `
-            -CurrentVersion:$CurrentVersion `
-            -DiffPlans $diffPlans `
-            -FinalCommitMessage $finalCommitMessage `
-            -CanPushBranch:$branchInfo.CanPushBranch `
-            -CurrentBranch $branchInfo.BranchName `
-            -CreateVersionTag:$CreateVersionTag `
-            -ProposedTagName $proposedTagName `
-            -FinalTagMessage $finalTagMessage `
-            -PushTag:$PushTag `
-            -MostRecentGitTag $mostRecentGitTag
-        return
-    }
-
-    # 13. Execute Version Bump Operations (Skipped when -CurrentVersion is used)
-    if (-not $CurrentVersion) {
-        $bumpPlan = Confirm-VersionBumpPrompt `
-            -NewSemVer $newSemVer `
-            -NewFileVer $newFileVer `
-            -ProposedTagName $proposedTagName `
-            -FinalCommitMessage $finalCommitMessage `
-            -DiffPlans $diffPlans `
-            -ProjectRoot $ProjectRoot `
-            -NonInteractive:$NonInteractive
-
-        if (-not $bumpPlan) {
-            return
-        }
-
-        $newSemVer = $bumpPlan.NewSemVer
-        $newFileVer = $bumpPlan.NewFileVer
-        $proposedTagName = $bumpPlan.ProposedTagName
-        $finalCommitMessage = $bumpPlan.FinalCommitMessage
-        $diffPlans = $bumpPlan.DiffPlans
-
-        Write-Host -ForegroundColor Cyan "Applying file updates..."
-        Apply-FileUpdates -DiffPlans $diffPlans
-
-        Sync-FrontendPackageLock -ProjectRoot $ProjectRoot
-
-        Invoke-VersionBumpCommit `
-            -DiffPlans $diffPlans `
-            -CommitMessage $finalCommitMessage `
-            -CurrentBranch $branchInfo.BranchName `
-            -CanPushBranch:$branchInfo.CanPushBranch
-    }
-
-    # 14. Tag Handling Logic
-    $tagSuccess = Invoke-TagOperations `
-        -CreateVersionTag:$CreateVersionTag `
-        -ProposedTagName $proposedTagName `
-        -TagMessage $TagMessage `
-        -PushTag:$PushTag `
-        -NonInteractive:$NonInteractive `
-        -ProjectRoot $ProjectRoot
-
-    Write-Host ""
-    if ($CreateVersionTag -and -not $tagSuccess) {
-        Write-Host -ForegroundColor Yellow "Set-Version finished: Version tag creation was skipped or aborted."
-    }
-    else {
-        Write-Host -ForegroundColor Green "Set-Version completed successfully!"
-    }
-    Write-Host ""
 }
-finally {
-    Pop-Location
+catch {
+    Write-Host ""
+    Write-Host -ForegroundColor Red "ERROR: $($_.Exception.Message)"
+    Write-Host ""
+    exit 1
 }
