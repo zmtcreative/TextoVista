@@ -307,6 +307,12 @@ function Format-UnreleasedContent {
     # Strip any accidental alert callouts from the AI response
     $text = [regex]::Replace($text, '(?ms)^\s*>\s*\[!WARNING\].*?(?=\r?\n\r?\n|\r?\n###|\Z)', '').Trim()
 
+    # Strip any local file:/// markdown links back to clean inline backticks (e.g. [`file.go`](file:///...) or [file.go](file:///...) -> `file.go`)
+    $text = [regex]::Replace($text, '\[`?([^\]\r\n]+?)`?\]\(file:///[^\)]*\)', [System.Text.RegularExpressions.MatchEvaluator]{
+        param($m)
+        return ('`' + $m.Groups[1].Value.Trim('`') + '`')
+    })
+
     if ([string]::IsNullOrWhiteSpace($AlertMarkdown)) {
         return $text
     }
@@ -413,8 +419,9 @@ $CurrentUnreleased
 4. Do NOT use redundant prefixes like '- Add:', '- Fix:', '- Update:', '- Rebrand:', etc. in bullet items. The category subheader already conveys the type of change. Start bullet points directly with an action verb or noun.
 5. Keep bullet descriptions clear, professional, and directly focused on user-visible or architectural value.
 6. If current notes in '## [Unreleased]' describe actual changes, incorporate them into the appropriate category.
-7. CRITICAL: Do NOT output any '> [!WARNING]' alert callout or section headers (e.g., '## [$TargetHeading]'). Stability warning alerts, section headers, and compare link definitions are handled automatically by the script.
-8. CRITICAL: Do NOT call any tools. Output ONLY pure markdown text without wrapping the entire response in backtick code fences (no ```markdown or ```).
+7. CRITICAL: Do NOT use markdown links, URL schemes, or 'file:///' links when referencing files, paths, or code symbols. Refer to files and symbols using ONLY plain relative paths enclosed in backticks (e.g., `path/to/file.ext`, `ClassName`).
+8. CRITICAL: Do NOT output any '> [!WARNING]' alert callout or section headers (e.g., '## [$TargetHeading]'). Stability warning alerts, section headers, and compare link definitions are handled automatically by the script.
+9. CRITICAL: Do NOT call any tools. Output ONLY pure markdown text without wrapping the entire response in backtick code fences (no ```markdown or ```).
 "@
 
     return $prompt
