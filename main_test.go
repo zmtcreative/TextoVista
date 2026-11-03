@@ -119,6 +119,14 @@ func TestBuildWailsAppOptionsMenuLabels(t *testing.T) {
 }
 
 func TestBuildWailsAppOptionsRestoresSavedWindowState(t *testing.T) {
+	origGetWorkArea := appGetAvailableWorkArea
+	defer func() { appGetAvailableWorkArea = origGetWorkArea }()
+
+	// Unconstrained display (e.g. 1080p desktop): saved 920x740 fits without clamping
+	appGetAvailableWorkArea = func() (int, int, error) {
+		return 1920, 1080, nil
+	}
+
 	mdrApp := newMainSection9App(t)
 	mdrApp.configManager.SetWindowState(internalapp.WindowStateConfig{
 		Width:     920,
@@ -132,6 +140,16 @@ func TestBuildWailsAppOptionsRestoresSavedWindowState(t *testing.T) {
 	}
 	if appOptions.WindowStartState != options.Normal {
 		t.Fatalf("restored window start state = %v, want Normal", appOptions.WindowStartState)
+	}
+
+	// Constrained display (e.g. 1024x768 headless CI runner with 48px taskbar -> work area 1024x720):
+	// Height 740 exceeds 720 - 60 = 660, so it must be clamped to 660.
+	appGetAvailableWorkArea = func() (int, int, error) {
+		return 1024, 720, nil
+	}
+	appOptionsClamped := buildWailsAppOptions(mdrApp)
+	if appOptionsClamped.Width != 920 || appOptionsClamped.Height != 660 {
+		t.Fatalf("clamped window dimensions = %dx%d, want 920x660", appOptionsClamped.Width, appOptionsClamped.Height)
 	}
 }
 

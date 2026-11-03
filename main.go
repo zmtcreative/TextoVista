@@ -18,6 +18,8 @@ var (
 	Version = "dev-build"
 	Commit  = "none"
 	Date    = "unknown"
+
+	appGetAvailableWorkArea = app.GetAvailableWorkArea
 )
 
 func buildWailsAppOptions(mdrApp *App) *options.App {
@@ -26,7 +28,7 @@ func buildWailsAppOptions(mdrApp *App) *options.App {
 		savedState = mdrApp.configManager.GetWindowState()
 	}
 
-	workAreaW, workAreaH, err := app.GetAvailableWorkArea()
+	workAreaW, workAreaH, err := appGetAvailableWorkArea()
 	if err != nil || workAreaW <= 0 || workAreaH <= 0 {
 		workAreaW = app.MaxWidthDefault + app.WindowMarginX
 		workAreaH = app.MaxHeightDefault + app.WindowMarginY
