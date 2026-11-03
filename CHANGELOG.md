@@ -9,9 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-11-02
+
 This release introduces application window state persistence, enabling TextoVista to remember and restore window dimensions and maximized state across sessions while clamping bounds to the active display work area with Windows DPI scaling support. Additionally, the application's visual identity has been refreshed with updated vector, PNG, and ICO icon assets.
 
 Release automation and developer tooling have also been refined with Keep a Changelog 1.1.0 standardization across changelog and version management scripts, SSH pre-flight verification and tag-based synchronization defaults in the public repository sync script, collapsible change logs in CI release notes, path exclusions for IDE and agent configuration directories in build workflows, and preconfigured MinGW64 CGO settings for local Windows development.
+
 
 > [!WARNING]
 > This is still **Beta** software! It should be functional for general usage but likely still has bugs, and development is still ongoing.
@@ -158,7 +161,8 @@ See the repository's [README](./README.md) for additional information.
 - Basic document printing support.
 - Windows installer and Linux executable packaging workflows.
 
-[Unreleased]: https://github.com/zmtcreative/TextoVista/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/zmtcreative/TextoVista/compare/v0.7.2...HEAD
+[0.7.2]: https://github.com/zmtcreative/TextoVista/compare/v0.7.0...v0.7.2
 [0.7.0]: https://github.com/zmtcreative/TextoVista/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/zmtcreative/TextoVista/compare/v0.5.3...v0.6.0
 [0.5.3]: https://github.com/zmtcreative/TextoVista/compare/v0.5.2...v0.5.3
