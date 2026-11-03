@@ -35,8 +35,13 @@
     .PARAMETER Model
         Optional Antigravity CLI model to pass to 'agy --model <model>'.
 
+    .PARAMETER RegenerateChangelog
+        Forces AI generation of release notes from Git history even if substantive notes already exist
+        under '## [Unreleased]' in CHANGELOG.md. By default, existing curated notes are preserved.
+        Alias: -RefreshChangelog.
+
     .PARAMETER SkipChangelog
-        If specified, bypasses AI changelog generation and maintains existing changelog content.
+        If specified, bypasses AI changelog generation entirely.
 
     .PARAMETER ShowPrompt
         Displays the exact prompt sent to the Antigravity CLI for inspection/debugging.
@@ -78,6 +83,10 @@ param(
 
     [Parameter(Mandatory = $false)]
     [string]$Model = "",
+
+    [Parameter(Mandatory = $false)]
+    [Alias("RefreshChangelog")]
+    [switch]$RegenerateChangelog,
 
     [Parameter(Mandatory = $false)]
     [switch]$SkipChangelog,
@@ -208,22 +217,8 @@ function Assert-GitWorkingTreeClean {
 }
 
 # ==============================================================================
-# Helper Functions: Version Parsing & Calculations
+# Helper Functions: Version Calculations
 # ==============================================================================
-
-function Get-CurrentVersionFromWails {
-    param([string]$ProjectRoot)
-    $wailsPath = Join-Path $ProjectRoot "wails.json"
-    if (-not (Test-Path -Path $wailsPath -PathType Leaf)) {
-        throw "Source of truth 'wails.json' not found at '$wailsPath'."
-    }
-    $raw = Get-Content -Raw -Path $wailsPath -Encoding utf8
-    $json = $raw | ConvertFrom-Json
-    if (-not $json.info -or [string]::IsNullOrWhiteSpace($json.info.productVersion)) {
-        throw "Could not determine 'info.productVersion' from wails.json."
-    }
-    return $json.info.productVersion.Trim()
-}
 
 function Calculate-NextVersion {
     param(
@@ -544,14 +539,35 @@ try {
         }
     }
 
-    # 6. Draft Release Notes (In-Memory)
+    # 6. Prepare Release Notes (In-Memory)
     $todayDate = (Get-Date).ToString("yyyy-MM-dd")
     $alertMarkdown = Get-VersionAlertMarkdown -VersionString $targetVersionInfo.SemVer
     $releaseNotesBody = ""
 
-    if (-not $SkipChangelog) {
+    $currentUnreleased = Get-CurrentUnreleasedContent -ChangelogPath $ChangelogPath
+    $hasSubstantiveNotes = Test-UnreleasedHasSubstantiveNotes -UnreleasedContent $currentUnreleased
+
+    if ($SkipChangelog) {
+        Write-Host -ForegroundColor Cyan "  -SkipChangelog specified; skipping AI changelog generation."
+        if ($hasSubstantiveNotes) {
+            Write-Host -ForegroundColor Green "  Using existing [Unreleased] notes from CHANGELOG.md."
+            $releaseNotesBody = Format-UnreleasedContent -SummaryMarkdown $currentUnreleased -AlertMarkdown $alertMarkdown
+        } else {
+            $releaseNotesBody = "$alertMarkdown`n`n### Changed`n`n- Maintenance and version bump to $($targetVersionInfo.SemVer)."
+        }
+    } elseif ($hasSubstantiveNotes -and -not $RegenerateChangelog) {
+        Write-Host -ForegroundColor Green "  Found existing [Unreleased] notes in CHANGELOG.md."
+        Write-Host -ForegroundColor Cyan "  Preserving curated release notes for $($targetVersionInfo.SemVer)."
+        Write-Host -ForegroundColor DarkGray "  (Pass -RegenerateChangelog if you want AI to recreate these notes from Git history)."
+        $releaseNotesBody = Format-UnreleasedContent -SummaryMarkdown $currentUnreleased -AlertMarkdown $alertMarkdown
+    } else {
+        if ($RegenerateChangelog) {
+            Write-Host -ForegroundColor Yellow "  -RegenerateChangelog specified; drafting new notes with AI..."
+        } else {
+            Write-Host -ForegroundColor Cyan "  No existing [Unreleased] notes found; drafting release notes from Git history via AI..."
+        }
+
         $referenceStyle = Get-ChangelogReferenceStyle -ChangelogPath $ChangelogPath
-        $currentUnreleased = Get-CurrentUnreleasedContent -ChangelogPath $ChangelogPath
 
         $prompt = Build-AgyChangelogPrompt `
             -SinceTag $baselineTag `
@@ -573,13 +589,6 @@ try {
         }
 
         $releaseNotesBody = Format-UnreleasedContent -SummaryMarkdown $summaryRaw -AlertMarkdown $alertMarkdown
-    } else {
-        $currentUnreleased = Get-CurrentUnreleasedContent -ChangelogPath $ChangelogPath
-        if (-not [string]::IsNullOrWhiteSpace($currentUnreleased)) {
-            $releaseNotesBody = Format-UnreleasedContent -SummaryMarkdown $currentUnreleased -AlertMarkdown $alertMarkdown
-        } else {
-            $releaseNotesBody = "$alertMarkdown`n`n### Changed`n`n- Maintenance and version bump to $($targetVersionInfo.SemVer)."
-        }
     }
 
     # 7. Plan In-Memory Diffs for Target Files & CHANGELOG.md

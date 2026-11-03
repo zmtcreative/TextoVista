@@ -82,6 +82,25 @@ function Get-GitCommitHistory {
 # Version Parsing & Formatting Helpers
 # ==============================================================================
 
+function Get-CurrentVersionFromWails {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectRoot
+    )
+
+    $wailsPath = Join-Path $ProjectRoot "wails.json"
+    if (-not (Test-Path -Path $wailsPath -PathType Leaf)) {
+        throw "Source of truth 'wails.json' not found at '$wailsPath'."
+    }
+    $raw = Get-Content -Raw -Path $wailsPath -Encoding utf8
+    $json = $raw | ConvertFrom-Json
+    if (-not $json.info -or [string]::IsNullOrWhiteSpace($json.info.productVersion)) {
+        throw "Could not determine 'info.productVersion' from wails.json."
+    }
+    return $json.info.productVersion.Trim()
+}
+
 function Parse-VersionString {
     [CmdletBinding()]
     param(
@@ -293,6 +312,26 @@ function Get-CurrentUnreleasedContent {
     return ($unreleasedLines -join "`n").Trim()
 }
 
+function Test-UnreleasedHasSubstantiveNotes {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $false)]
+        [string]$UnreleasedContent
+    )
+
+    if ([string]::IsNullOrWhiteSpace($UnreleasedContent)) {
+        return $false
+    }
+
+    # Strip warnings, HTML comments, and generic placeholders
+    $cleaned = $UnreleasedContent
+    $cleaned = [regex]::Replace($cleaned, '(?ms)^\s*>\s*\[!WARNING\].*?(?=\r?\n\r?\n|\r?\n###|\Z)', '').Trim()
+    $cleaned = [regex]::Replace($cleaned, '(?s)<!--.*?-->', '').Trim()
+    $cleaned = [regex]::Replace($cleaned, '(?i)ongoing development updates.*', '').Trim()
+
+    return ($cleaned -match '(?m)^###\s+\w+' -or $cleaned -match '(?m)^-\s+\S+')
+}
+
 function Format-UnreleasedContent {
     [CmdletBinding()]
     param(
@@ -457,4 +496,65 @@ function Invoke-AgyChangelogSummary {
     }
 
     return $rawText
+}
+
+# ==============================================================================
+# Changelog Document Updating Helpers
+# ==============================================================================
+
+function Update-ChangelogDocument {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ChangelogPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$NewUnreleasedBody,
+
+        [Parameter(Mandatory = $false)]
+        [string]$SinceTag = ""
+    )
+
+    if (-not (Test-Path -Path $ChangelogPath -PathType Leaf)) {
+        throw "CHANGELOG.md file not found at '$ChangelogPath'."
+    }
+
+    $content = Get-Content -Path $ChangelogPath -Raw -Encoding utf8
+
+    # Regex to find '## [Unreleased]' or '## Unreleased' section up to the next '## ' header or link definitions or end of file
+    $unreleasedPattern = '(?ms)^##\s+\[?Unreleased\]?\s*\r?\n.*?(?=^##\s+[^#]|^\[.+\]:\s+https?://|\Z)'
+    $formattedBlock = "## [Unreleased]`n`n" + $NewUnreleasedBody.Trim() + "`n`n"
+
+    if ($content -match $unreleasedPattern) {
+        $newContent = [regex]::Replace($content, $unreleasedPattern, [System.Text.RegularExpressions.MatchEvaluator]{ return $formattedBlock })
+    } else {
+        # If '## [Unreleased]' header does not exist, insert it before the first version header
+        $versionPattern = '(?m)^##\s+\[?(?:v)?\d+\.\d+\.\d+'
+        if ($content -match $versionPattern) {
+            $newContent = [regex]::new($versionPattern).Replace($content, [System.Text.RegularExpressions.MatchEvaluator]{ return ($formattedBlock + $_.Value) }, 1)
+        } else {
+            # Append at end of file
+            $newContent = $content.TrimEnd() + "`n`n" + $formattedBlock
+        }
+    }
+
+    # Maintain compare link for [Unreleased] at the bottom
+    if (-not [string]::IsNullOrWhiteSpace($SinceTag)) {
+        $repoUrl = "https://github.com/zmtcreative/TextoVista"
+        if ($newContent -match '(?m)^\[.+\]:\s*(https?://github\.com/[^/\s]+/[^/\s#?]+?)(?:/compare|/releases|$)') {
+            $repoUrl = ($Matches[1] -replace '\.git$', '').TrimEnd('/')
+        }
+        $unreleasedLink = "[Unreleased]: $repoUrl/compare/$SinceTag...HEAD"
+        $unreleasedLinkPattern = '(?m)^\[Unreleased\]:\s+https?://\S+'
+        $versionLinkPattern = '(?m)^\[\d+\.\d+\.\d+(?:-[^\]]+)?\]:\s+https?://\S+'
+        if ($newContent -match $unreleasedLinkPattern) {
+            $newContent = [regex]::new($unreleasedLinkPattern).Replace($newContent, $unreleasedLink, 1)
+        } elseif ($newContent -match $versionLinkPattern) {
+            $newContent = [regex]::new($versionLinkPattern).Replace($newContent, "$unreleasedLink`n`$0", 1)
+        } else {
+            $newContent = $newContent.TrimEnd() + "`n`n$unreleasedLink`n"
+        }
+    }
+
+    return ($newContent.TrimEnd() + "`n")
 }
